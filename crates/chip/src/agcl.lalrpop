@@ -204,7 +204,6 @@ pub LTLProgram: LTLProgram = {
         commands: vec![commands],
         properties,
     },
-
     <initial:LTLInitialAssign>
     "par"
     <commands:SepNonEmpty<LTLCommands, "[]">>
@@ -216,20 +215,44 @@ pub LTLProgram: LTLProgram = {
     },
 };
 
-LTLInitialAssign: IndexMap<Variable, Int> = {
+LTLInitialAssign: IndexMap<Variable, Initial> = {
     <assignments:(">" <SepNonEmpty<LTLVariableAssignment, ",">>)*> =>
         assignments.into_iter().flatten().collect(),
+    
 };
 
-LTLVariableAssignment: (Variable, Int) = {
-    <var:Var> "=" <val:Int> => (Variable(var), val),
-    <var:Var> "=" "-" <val:Int> => (Variable(var), -val),
+LTLVariableAssignment: (Variable, Initial) = {
+    <var:Var> "=" <val:Int> => (Variable(var), Initial::Int(val)),
+    <var:Var> "=" "-" <val:Int> => (Variable(var), Initial::Int(-val)),
+    <var:Var> "=" "(" <space_type:TupleSpaceType> "," <size:TupleSpaceSize> "," "{" <space:TupleSpaceValues> "}" ")" =>
+        (Variable(var.clone()), Initial::TupleSpace(TupleSpace { name: Variable(var), space_type, size, space })),
+};
+
+TupleSpaceType: TupleSpaceType = {
+    "R" => TupleSpaceType::Random,
+    "Q" => TupleSpaceType::Queue,
+    "S" => TupleSpaceType::Stack,
+    "F" => TupleSpaceType::FIFO,
+    "L" => TupleSpaceType::LIFO,
+};
+
+TupleSpaceSize: TupleSpaceSize = {
+    <n:Int> => TupleSpaceSize::Finite(n),
+    "INF" => TupleSpaceSize::Infinite,
+};
+
+TupleSpaceValues: Vec<Vec<Int>> = {
+    <tuples:Sep<Tuple, ",">> => tuples,
+};
+
+Tuple: Vec<Int> = {
+    "(" <values:Sep<Int, ",">> ")" => values,
 };
 
 LTLProperty: (SourceSpan, LTLFormula) = {
     "check" <l:@L> <ltl:LTLFormula> <r:@R> =>
         ((l, r - l).into(), ltl),
-}
+};
 
 
 // LTL Formula with precedence

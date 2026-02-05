@@ -159,8 +159,35 @@ pub enum LTLFormula {
 
 pub type LTLProperty = (SourceSpan, LTLFormula);
 
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum TupleSpaceType {
+    Random,
+    Queue,
+    Stack,
+    FIFO,
+    LIFO,
+}
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum TupleSpaceSize {
+    Finite(i32),
+    Infinite
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct TupleSpace {
+    pub name: Variable,
+    pub space_type: TupleSpaceType,
+    pub size: TupleSpaceSize,
+    pub space: Vec<Vec<Int>>
+}
+
+pub enum Initial {
+    Int(i32),
+    TupleSpace(TupleSpace),
+}
+
 pub struct LTLProgram {
-    pub initial: IndexMap<Variable, i32>,
+    pub initial: IndexMap<Variable, Initial>,
     pub commands: Vec<Commands<(), ()>>,
     pub properties: Vec<LTLProperty>,
 }
