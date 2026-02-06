@@ -281,8 +281,13 @@ TupleSpaceValues: Vec<Vec<Int>> = {
 };
 
 Tuple: Vec<Int> = {
-    "(" <values:SepNonEmpty<Int, ",">> ")" => values,
+    "(" <values:SepNonEmpty<Value, ",">> ")" => values,
 };
+
+Value: Int = {
+    <value:Int> => value,
+    "-" <value:Int> => -value,
+}
 
 TupleSpace: (TupleSpaceType, TupleSpaceSize, Vec<Vec<Int>>) = {
     "(" <space_type:TupleSpaceType> "," <size:TupleSpaceSize> "," <space:TupleSpaceValues> ")" =>
