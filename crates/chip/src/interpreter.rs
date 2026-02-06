@@ -1,5 +1,6 @@
 use std::fmt;
 
+use indexmap::IndexMap;
 use itertools::{Either, Itertools};
 use mcltl::ltl::expression::Literal;
 
@@ -60,7 +61,7 @@ impl Program {
     pub fn compile(
         cmdss: &[Commands<(), ()>],
         additional_vars: impl IntoIterator<Item = Variable>,
-        tuple_spaces: Vec<TupleSpace>,
+        tuple_spaces: IndexMap<Variable, TupleSpace>,
     ) -> Program {
         let mut p = Program {
             variables: cmdss
@@ -80,8 +81,8 @@ impl Program {
             source_map: Vec::new(),
             tuple_spaces: tuple_spaces
                 .into_iter()
-                .map(|ts| TupleSpaceMeta {
-                    name: ts.name,
+                .map(|(var, ts)| TupleSpaceMeta {
+                    name: var,
                     space_type: ts.space_type,
                     size: ts.size,
                 })

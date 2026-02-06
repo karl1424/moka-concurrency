@@ -170,26 +170,25 @@ pub enum TupleSpaceType {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum TupleSpaceSize {
     Finite(i32),
-    Infinite
+    Infinite,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TupleSpace {
-    pub name: Variable,
     pub space_type: TupleSpaceType,
     pub size: TupleSpaceSize,
-    pub space: Vec<Vec<Int>>
+    pub space: Vec<Vec<Int>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum AssignmentKind {
     Int(Variable, i32),
-    TupleSpace(TupleSpace),
+    TupleSpace(Variable, TupleSpace),
 }
 
 pub struct LTLProgram {
     pub initial: IndexMap<Variable, i32>,
-    pub tuple_spaces: Vec<TupleSpace>,
+    pub tuple_spaces: IndexMap<Variable, TupleSpace>,
     pub commands: Vec<Commands<(), ()>>,
     pub properties: Vec<LTLProperty>,
 }

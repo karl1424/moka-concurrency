@@ -223,25 +223,20 @@ pub LTLProgram: LTLProgram = {
     },
 };
 
-LTLInitialAssign: (IndexMap<Variable, i32>, Vec<TupleSpace>) = {
+LTLInitialAssign: (IndexMap<Variable, i32>, IndexMap<Variable, TupleSpace>) = {
     <lines:(">" <SepNonEmpty<LTLAssignment, ",">>)*> => {
         let mut initial = IndexMap::new();
-        let mut tuple_spaces = Vec::new();
-        let mut tuple_space_names = std::collections::HashSet::new();
-    
+        let mut tuple_spaces = IndexMap::new();    
         for line in lines {
             for assignment in line {
                 match assignment {
                     AssignmentKind::Int(var, val) => { initial.insert(var, val); },
-                    AssignmentKind::TupleSpace(ts) => {
-                        if tuple_space_names.contains(&ts.name) {
-                            if let Some(pos) = tuple_spaces.iter().position(|t: &TupleSpace| t.name == ts.name) {
-                                tuple_spaces.remove(pos);
-                            }
-                        } else {
-                            tuple_space_names.insert(ts.name.clone());
-                        }
-                        tuple_spaces.push(ts);
+                    AssignmentKind::TupleSpace(var, ts) => {
+                        tuple_spaces.insert(var, TupleSpace {
+                            space_type: ts.space_type,
+                            size: ts.size,
+                            space: ts.space,
+                        });
                     },
                 }
             }
@@ -254,8 +249,7 @@ LTLInitialAssign: (IndexMap<Variable, i32>, Vec<TupleSpace>) = {
 LTLAssignment: AssignmentKind = {
     <var:Var> "=" <val:Int> => AssignmentKind::Int(Variable(var), val),
     <var:Var> "=" "-" <val:Int> => AssignmentKind::Int(Variable(var), -val),
-    <var:Var> "=" <ts:TupleSpace> => AssignmentKind::TupleSpace(TupleSpace {
-        name: Variable(var),
+    <var:Var> "=" <ts:TupleSpace> => AssignmentKind::TupleSpace(Variable(var), TupleSpace {
         space_type: ts.0,
         size: ts.1,
         space: ts.2,

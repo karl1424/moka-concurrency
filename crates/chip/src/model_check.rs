@@ -63,11 +63,12 @@ impl ReachableStates {
             ltl_program.tuple_spaces.clone(),
         );
         let state = program.initial_state(
-            |var| ltl_program.initial.get(var).copied().unwrap_or_default(),
+            |var    | ltl_program.initial.get(var).copied().unwrap_or_default(),
             ltl_program
                 .tuple_spaces
-                .iter()
-                .map(|ts| ts.space.clone())
+                .clone()
+                .into_iter()
+                .map(|(_, ts)| ts.space.clone())
                 .collect(),
         );
         let mut states = Vec::new();
