@@ -181,13 +181,15 @@ pub struct TupleSpace {
     pub space: Vec<Vec<Int>>
 }
 
-pub enum Initial {
-    Int(i32),
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum AssignmentKind {
+    Int(Variable, i32),
     TupleSpace(TupleSpace),
 }
 
 pub struct LTLProgram {
-    pub initial: IndexMap<Variable, Initial>,
+    pub initial: IndexMap<Variable, i32>,
+    pub tuple_spaces: Vec<TupleSpace>,
     pub commands: Vec<Commands<(), ()>>,
     pub properties: Vec<LTLProperty>,
 }

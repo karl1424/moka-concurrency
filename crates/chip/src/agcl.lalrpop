@@ -197,35 +197,69 @@ AExprBox: Box<AExpr> = AExpr => Box::new(<>);
 // Formats
 
 pub LTLProgram: LTLProgram = {
-    <initial:LTLInitialAssign>
+    <assignments:LTLInitialAssign>
     <commands:LTLCommands>
-    <properties:LTLProperty*> => LTLProgram {
-        initial,
-        commands: vec![commands],
-        properties,
+    <properties:LTLProperty*> => {
+        let (initial, tuple_spaces) = assignments;
+        LTLProgram {
+            initial,
+            tuple_spaces,
+            commands: vec![commands],
+            properties,
+        }
     },
-    <initial:LTLInitialAssign>
+    <assignments:LTLInitialAssign>
     "par"
     <commands:SepNonEmpty<LTLCommands, "[]">>
     "rap"
-    <properties:LTLProperty*> => LTLProgram {
-        initial,
-        commands,
-        properties,
+    <properties:LTLProperty*> => {
+        let (initial, tuple_spaces) = assignments;
+        LTLProgram {
+            initial,
+            tuple_spaces,
+            commands,
+            properties,
+        }
     },
 };
 
-LTLInitialAssign: IndexMap<Variable, Initial> = {
-    <assignments:(">" <SepNonEmpty<LTLVariableAssignment, ",">>)*> =>
-        assignments.into_iter().flatten().collect(),
+LTLInitialAssign: (IndexMap<Variable, i32>, Vec<TupleSpace>) = {
+    <lines:(">" <SepNonEmpty<LTLAssignment, ",">>)*> => {
+        let mut initial = IndexMap::new();
+        let mut tuple_spaces = Vec::new();
+        let mut tuple_space_names = std::collections::HashSet::new();
     
+        for line in lines {
+            for assignment in line {
+                match assignment {
+                    AssignmentKind::Int(var, val) => { initial.insert(var, val); },
+                    AssignmentKind::TupleSpace(ts) => {
+                        if tuple_space_names.contains(&ts.name) {
+                            if let Some(pos) = tuple_spaces.iter().position(|t: &TupleSpace| t.name == ts.name) {
+                                tuple_spaces.remove(pos);
+                            }
+                        } else {
+                            tuple_space_names.insert(ts.name.clone());
+                        }
+                        tuple_spaces.push(ts);
+                    },
+                }
+            }
+        }
+
+        (initial, tuple_spaces)
+    }
 };
 
-LTLVariableAssignment: (Variable, Initial) = {
-    <var:Var> "=" <val:Int> => (Variable(var), Initial::Int(val)),
-    <var:Var> "=" "-" <val:Int> => (Variable(var), Initial::Int(-val)),
-    <var:Var> "=" "(" <space_type:TupleSpaceType> "," <size:TupleSpaceSize> "," "{" <space:TupleSpaceValues> "}" ")" =>
-        (Variable(var.clone()), Initial::TupleSpace(TupleSpace { name: Variable(var), space_type, size, space })),
+LTLAssignment: AssignmentKind = {
+    <var:Var> "=" <val:Int> => AssignmentKind::Int(Variable(var), val),
+    <var:Var> "=" "-" <val:Int> => AssignmentKind::Int(Variable(var), -val),
+    <var:Var> "=" <ts:TupleSpace> => AssignmentKind::TupleSpace(TupleSpace {
+        name: Variable(var),
+        space_type: ts.0,
+        size: ts.1,
+        space: ts.2,
+    }),
 };
 
 TupleSpaceType: TupleSpaceType = {
@@ -242,11 +276,17 @@ TupleSpaceSize: TupleSpaceSize = {
 };
 
 TupleSpaceValues: Vec<Vec<Int>> = {
-    <tuples:Sep<Tuple, ",">> => tuples,
+    "{" "}" => vec![],
+    "{" <tuples:SepNonEmpty<Tuple, ",">> "}" => tuples,
 };
 
 Tuple: Vec<Int> = {
-    "(" <values:Sep<Int, ",">> ")" => values,
+    "(" <values:SepNonEmpty<Int, ",">> ")" => values,
+};
+
+TupleSpace: (TupleSpaceType, TupleSpaceSize, Vec<Vec<Int>>) = {
+    "(" <space_type:TupleSpaceType> "," <size:TupleSpaceSize> "," <space:TupleSpaceValues> ")" =>
+        (space_type, size, space)
 };
 
 LTLProperty: (SourceSpan, LTLFormula) = {

@@ -8,7 +8,7 @@ use mcltl::{
 };
 
 use crate::{
-    ast::{BExpr, Initial, Locator, Target},
+    ast::{BExpr, Locator, Target},
     ast_ext::FreeVariables,
 };
 
@@ -60,12 +60,16 @@ impl ReachableStates {
                     _ => None,
                 })
                 .chain(ltl_program.initial.keys().cloned()),
+            ltl_program.tuple_spaces.clone(),
         );
-        let state = program.initial_state(|var| match ltl_program.initial.get(var) {
-            Some(Initial::Int(val)) => *val,
-            Some(Initial::TupleSpace(_)) => 0,
-            _ => 0,
-        });
+        let state = program.initial_state(
+            |var| ltl_program.initial.get(var).copied().unwrap_or_default(),
+            ltl_program
+                .tuple_spaces
+                .iter()
+                .map(|ts| ts.space.clone())
+                .collect(),
+        );
         let mut states = Vec::new();
         let mut visited = HashMap::new();
         let mut relations: HashMap<usize, HashSet<_>> = HashMap::new();

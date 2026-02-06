@@ -1,9 +1,9 @@
-use std::fmt::{Display, write};
+use std::fmt::Display;
 
 use itertools::Itertools;
 
 use crate::ast::{
-    AExpr, AOp, Array, BExpr, Command, CommandKind, Commands, Function, Guard, Initial, LTLFormula, LTLProgram, Locator, LogicOp, PredicateBlock, PredicateChain, Quantifier, RelOp, Target, Variable
+    AExpr, AOp, Array, BExpr, Command, CommandKind, Commands, Function, Guard, LTLFormula, LTLProgram, Locator, LogicOp, PredicateBlock, PredicateChain, Quantifier, RelOp, Target, Variable
 };
 
 impl Display for Variable {
@@ -223,14 +223,6 @@ impl Display for LTLFormula {
             LTLFormula::Next(ltlformula) => write!(f, "X({ltlformula})"),
             LTLFormula::Globally(ltlformula) => write!(f, "G({ltlformula})"),
             LTLFormula::Finally(ltlformula) => write!(f, "F({ltlformula})"),
-        }
-    }
-}
-impl Display for Initial{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Initial::Int(val) => write!(f,"{val}"),
-            Initial::TupleSpace(ts) => write!(f, "{}", ts.name),
         }
     }
 }

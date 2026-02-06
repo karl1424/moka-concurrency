@@ -5,8 +5,8 @@ use mcltl::ltl::expression::Literal;
 
 use crate::{
     ast::{
-        AExpr, AOp, BExpr, Command, CommandKind, Commands, Function, LTLFormula, Locator, LogicOp,
-        RelOp, Target, Variable,
+        AExpr, AOp, BExpr, Command, CommandKind, Commands, Function, Int, LTLFormula, Locator,
+        LogicOp, RelOp, Target, TupleSpace, TupleSpaceSize, TupleSpaceType, Variable,
     },
     ast_ext::FreeVariables,
     parse::SourceSpan,
@@ -35,9 +35,17 @@ enum Instr {
 #[derive(Debug)]
 pub struct Program {
     variables: Vec<Variable>,
+    tuple_spaces: Vec<TupleSpaceMeta>,
     instrs: Vec<Instr>,
     entry_points: Vec<InstrPtr>,
     source_map: Vec<Option<SourceSpan>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TupleSpaceMeta {
+    pub name: Variable,
+    pub space_type: TupleSpaceType,
+    pub size: TupleSpaceSize,
 }
 
 impl std::ops::Index<InstrPtr> for Program {
@@ -52,6 +60,7 @@ impl Program {
     pub fn compile(
         cmdss: &[Commands<(), ()>],
         additional_vars: impl IntoIterator<Item = Variable>,
+        tuple_spaces: Vec<TupleSpace>,
     ) -> Program {
         let mut p = Program {
             variables: cmdss
@@ -69,6 +78,14 @@ impl Program {
             instrs: Vec::new(),
             entry_points: Vec::new(),
             source_map: Vec::new(),
+            tuple_spaces: tuple_spaces
+                .into_iter()
+                .map(|ts| TupleSpaceMeta {
+                    name: ts.name,
+                    space_type: ts.space_type,
+                    size: ts.size,
+                })
+                .collect(),
         };
 
         for cmds in cmdss {
@@ -84,10 +101,15 @@ impl Program {
         p
     }
 
-    pub fn initial_state(&self, memory: impl Fn(&Variable) -> i32) -> State {
+    pub fn initial_state(
+        &self,
+        memory: impl Fn(&Variable) -> i32,
+        tuple_space_memory: Vec<Vec<Vec<Int>>>,
+    ) -> State {
         State {
             ptrs: self.entry_points.clone(),
             memory: self.variables.iter().map(memory).collect(),
+            tuple_spaces: tuple_space_memory,
         }
     }
 
@@ -182,6 +204,7 @@ type Memory = Vec<i32>;
 pub struct State {
     ptrs: Vec<InstrPtr>,
     memory: Memory,
+    tuple_spaces: Vec<Vec<Vec<Int>>>,
 }
 
 #[derive(Debug)]
@@ -242,7 +265,11 @@ impl State {
             .map(move |(mem, ptr)| {
                 let mut ptrs = self.ptrs.clone();
                 ptrs[execution] = ptr;
-                State { ptrs, memory: mem }
+                State {
+                    ptrs,
+                    memory: mem,
+                    tuple_spaces: self.tuple_spaces.clone(),
+                }
             }))
     }
     pub fn is_terminated(&self, p: &Program) -> bool {
@@ -315,16 +342,36 @@ pub struct StateFormat<'a> {
 
 impl fmt::Display for StateFormat<'_> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "{}",
-            self.state
-                .memory
+        let mut parts = Vec::new();
+
+        for (value, var) in self.state.memory.iter().zip(&self.program.variables) {
+            parts.push(format!("{var} = {value}"));
+        }
+
+        for (ts_meta, ts_values) in self
+            .program
+            .tuple_spaces
+            .iter()
+            .zip(&self.state.tuple_spaces)
+        {
+            let tuples_str = ts_values
                 .iter()
-                .zip(&self.program.variables)
-                .map(|(value, var)| format!("{var} = {value}"))
-                .format(", ")
-        )
+                .map(|tuple| {
+                    format!(
+                        "({})",
+                        tuple
+                            .iter()
+                            .map(|v| v.to_string())
+                            .collect::<Vec<_>>()
+                            .join(",")
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join(", ");
+            parts.push(format!("{} = {{{}}}", ts_meta.name, tuples_str))
+        }
+
+        write!(f, "{}", parts.join(", "))
     }
 }
 
