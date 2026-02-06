@@ -117,8 +117,9 @@ LTLCommandKind: CommandKind<(), ()> = {
     <Target> ":=" <AExpr>                       => CommandKind::Assignment(<>),
     "skip"                                      => CommandKind::Skip,
     "placeholder"                               => CommandKind::Placeholder,
-    "if" <LTLGuards> "fi"                          => CommandKind::If(<>),
+    "if" <LTLGuards> "fi"                       => CommandKind::If(<>),
     "do" <LTLGuards> "od" => CommandKind::Loop((), <>),
+    <Target> ".put" <TuplePut>                  => CommandKind::O(Operation::Put(<>)),
 };
 LTLGuards: Vec<Guard<(), ()>> = SepNonEmpty<LTLGuard, "[]">;
 LTLGuard: Guard<(), ()> = {
@@ -278,14 +279,37 @@ Tuple: Vec<Int> = {
     "(" <values:SepNonEmpty<Value, ",">> ")" => values,
 };
 
+TuplePut: Vec<AExpr> = {
+    "(" <values:SepNonEmpty<AExpr, ",">> ")" => values,
+};
+
 Value: Int = {
     <value:Int> => value,
     "-" <value:Int> => -value,
 }
 
-TupleSpace: (TupleSpaceType, TupleSpaceSize, Vec<Vec<Int>>) = {
-    "(" <space_type:TupleSpaceType> "," <size:TupleSpaceSize> "," <space:TupleSpaceValues> ")" =>
-        (space_type, size, space)
+TupleSpace: (TupleSpaceType, TupleSpaceSize, Vec<Vec<Int>>) = {  
+    <from:@L> "(" <space_type:TupleSpaceType> "," <size:TupleSpaceSize> "," <space:TupleSpaceValues> ")" <to:@R> =>? {  
+        match size {  
+            TupleSpaceSize::Finite(n) => {  
+                if space.len() as i32 > n {  
+                    Err(lalrpop_util::ParseError::User {  
+                        error: crate::parse::CustomError::TooManyTuples {  
+                            size: n,  
+                            actual: space.len() as i32,  
+                            from,  
+                            to,  
+                        },  
+                    })  
+                } else {  
+                    Ok((space_type, size, space))  
+                }  
+            }  
+            TupleSpaceSize::Infinite => {  
+                Ok((space_type, size, space))  
+            }  
+        }  
+    }  
 };
 
 LTLProperty: (SourceSpan, LTLFormula) = {

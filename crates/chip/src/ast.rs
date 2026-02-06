@@ -43,13 +43,20 @@ pub struct Command<Pred, Inv> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Operation {
+    Put(Target<Box<AExpr>>, Vec<AExpr>),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum CommandKind<Pred, Inv> {
     Assignment(Target<Box<AExpr>>, AExpr),
     Skip,
     Placeholder,
     If(Vec<Guard<Pred, Inv>>),
     Loop(Inv, Vec<Guard<Pred, Inv>>),
+    O(Operation),
 }
+
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Guard<Pred, Inv> {

@@ -127,10 +127,29 @@ pub enum ParseError {
         #[label = "The integer is too large to be represented"]
         err_span: SourceSpan,
     },
+    #[error("Too many tuples in tuple space")]
+    #[diagnostic(help("The tuple space can only hold {size} tuples, but {actual} were provided"))]
+    TooManyTuples {
+        #[source_code]
+        src: String,
+        #[label = "Too many tuples provided for this tuple space"]
+        err_span: SourceSpan,
+        size: i32,
+        actual: i32,
+    },
 }
 
 pub enum CustomError {
-    IntegerTooLarge { from: usize, to: usize },
+    IntegerTooLarge {
+        from: usize,
+        to: usize,
+    },
+    TooManyTuples {
+        size: i32,
+        actual: i32,
+        from: usize,
+        to: usize,
+    },
 }
 
 impl ParseError {
@@ -167,6 +186,19 @@ impl ParseError {
                     src: prep_src(),
                     err_span: (from, to).into(),
                 },
+                CustomError::TooManyTuples {
+                    size,
+                    actual,
+                    from,
+                    to
+                } => {
+                    ParseError::TooManyTuples {
+                        src: prep_src(),
+                        err_span: (from, to).into(),
+                        size,
+                        actual,
+                    }
+                }
             },
         }
     }

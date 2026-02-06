@@ -7,7 +7,7 @@ use mcltl::ltl::expression::Literal;
 use crate::{
     ast::{
         AExpr, AOp, BExpr, Command, CommandKind, Commands, Function, Int, LTLFormula, Locator,
-        LogicOp, RelOp, Target, TupleSpace, TupleSpaceSize, TupleSpaceType, Variable,
+        LogicOp, Operation, RelOp, Target, TupleSpace, TupleSpaceSize, TupleSpaceType, Variable,
     },
     ast_ext::FreeVariables,
     parse::SourceSpan,
@@ -31,6 +31,7 @@ enum Instr {
     },
     Goto(InstrPtr),
     Halt,
+    Put(TupleSpaceSize, u32, Vec<AExpr>),
 }
 
 #[derive(Debug)]
@@ -125,6 +126,13 @@ impl Program {
             .map(|idx| idx as _)
     }
 
+    fn tuple_space_index(&self, name: &str) -> Option<u32> {
+        self.tuple_spaces
+            .iter()
+            .position(|v| v.name.0 == name)
+            .map(|idx| idx as _)
+    }
+
     fn current(&self) -> InstrPtr {
         InstrPtr(self.instrs.len() as _)
     }
@@ -195,6 +203,11 @@ impl Program {
                     },
                 );
             }
+            CommandKind::O(Operation::Put(target, args)) => {
+                let index = self.tuple_space_index(target.name()).unwrap();
+                let tuple_max_size  = self.tuple_spaces[index as usize].size.clone();
+                self.push(Instr::Put(tuple_max_size, index, args.clone()), Some(cmd.span));
+            }
         }
     }
 }
@@ -263,13 +276,13 @@ impl State {
     ) -> Result<impl Iterator<Item = State> + 'a, StepError> {
         Ok(self
             .step_at(p, self.ptrs[execution])?
-            .map(move |(mem, ptr)| {
+            .map(move |(mem, tuple_spaces, ptr)| {
                 let mut ptrs = self.ptrs.clone();
                 ptrs[execution] = ptr;
                 State {
                     ptrs,
                     memory: mem,
-                    tuple_spaces: self.tuple_spaces.clone(),
+                    tuple_spaces,
                 }
             }))
     }
@@ -291,27 +304,27 @@ impl State {
         &self,
         p: &Program,
         ptr: InstrPtr,
-    ) -> Result<impl Iterator<Item = (Memory, InstrPtr)>, StepError> {
+    ) -> Result<impl Iterator<Item = (Memory, Vec<Vec<Vec<Int>>>, InstrPtr)>, StepError> {
         match &p[ptr] {
             Instr::Nop => Ok(Either::Left(
-                [(self.memory.clone(), ptr.bump())].into_iter(),
+                [(self.memory.clone(), self.tuple_spaces.clone(), ptr.bump())].into_iter(),
             )),
             Instr::Assign(v, e) => {
                 let value = e.evaluate(p, self)?;
                 let mut memory = self.memory.clone();
                 memory[*v as usize] = value;
-                Ok(Either::Left([(memory, ptr.bump())].into_iter()))
+                Ok(Either::Left([(memory, self.tuple_spaces.clone(), ptr.bump())].into_iter()))
             }
             Instr::Branch { choices, otherwise } => {
                 let mut valid = Vec::new();
                 for (b, target) in choices {
                     if b.evaluate(p, self)? {
-                        valid.push((self.memory.clone(), *target));
+                        valid.push((self.memory.clone(), self.tuple_spaces.clone(), *target));
                     }
                 }
                 if valid.is_empty() {
                     if let Some(target) = otherwise {
-                        Ok(Either::Left([(self.memory.clone(), *target)].into_iter()))
+                        Ok(Either::Left([(self.memory.clone(), self.tuple_spaces.clone(), *target)].into_iter()))
                     } else {
                         Err(StepError::Stuck)
                     }
@@ -319,8 +332,31 @@ impl State {
                     Ok(Either::Right(valid.into_iter()))
                 }
             }
-            Instr::Goto(target) => Ok(Either::Left([(self.memory.clone(), *target)].into_iter())),
+            Instr::Goto(target) => Ok(Either::Left([(self.memory.clone(), self.tuple_spaces.clone(), *target)].into_iter())),
             Instr::Halt => Err(StepError::Halt),
+            Instr::Put(ts_max_size, ts_index, args) => {
+                let values: Vec<Int> = args
+                    .iter()
+                    .map(|e| e.evaluate(p, self).map(Int::from))
+                    .collect::<Result<_, _>>()?;
+
+                let mut tuple_spaces = self.tuple_spaces.clone();
+
+                match ts_max_size {
+                    TupleSpaceSize::Finite(max_size) => {
+                        if tuple_spaces[*ts_index as usize].len() < *max_size as usize {
+                            tuple_spaces[*ts_index as usize].push(values);
+                        }
+                    }
+                    TupleSpaceSize::Infinite => {
+                        tuple_spaces[*ts_index as usize].push(values);
+                    }
+                }
+            
+                Ok(Either::Left(
+                    [(self.memory.clone(), tuple_spaces, ptr.bump())].into_iter(),
+                ))
+            }
         }
     }
 

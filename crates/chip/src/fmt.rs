@@ -57,6 +57,7 @@ impl<Prev: Display, Inv: Display> Display for CommandKind<Prev, Inv> {
             CommandKind::Loop(inv, guards) => {
                 write!(f, "do[{inv}] {}\nod", guards.iter().format("\n[] "))
             }
+            CommandKind::O(_) => write!(f, "operation()"),
         }
     }
 }
@@ -72,6 +73,7 @@ impl CommandKind<(), ()> {
             CommandKind::Loop((), guards) => {
                 format!("do {}\nod", guards.iter().map(|g| g.fmt()).format("\n[] "))
             }
+            CommandKind::O(_) => format!("operation"),
         }
     }
 }

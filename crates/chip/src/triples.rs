@@ -171,6 +171,10 @@ impl AGCLCommand {
 
                 acc = new;
             }
+            CommandKind::O(_) => {
+                // For now, we just treat operations as no-ops. In the future, we might want to
+                // compute their weakest precondition based on their semantics.
+            }
         }
 
         for p in self.pre.predicates.iter().rev() {
@@ -195,7 +199,7 @@ impl AGCLCommand {
     }
     pub fn is_fully_annotated(&self) -> bool {
         match &self.kind {
-            CommandKind::Assignment(_, _) | CommandKind::Skip | CommandKind::Placeholder => true,
+            CommandKind::Assignment(_, _) | CommandKind::Skip | CommandKind::Placeholder | CommandKind::O(_) => true,
             CommandKind::If(gcs) | CommandKind::Loop(_, gcs) => {
                 gcs.iter().all(|gc| gc.cmds.is_fully_annotated())
             }
