@@ -4,8 +4,7 @@ use indexmap::IndexSet;
 use itertools::Either;
 
 use crate::ast::{
-    AExpr, AOp, Array, BExpr, Command, CommandKind, Commands, Function, Guard, LTLFormula, LogicOp,
-    PredicateBlock, PredicateChain, Target, TargetDef, TargetKind, Variable,
+    AExpr, AOp, Array, BExpr, Command, CommandKind, Commands, Function, Guard, LTLFormula, LogicOp, Operation, PredicateBlock, PredicateChain, Target, TargetDef, TargetKind, Variable
 };
 
 impl Target<()> {
@@ -210,7 +209,7 @@ impl<Pred: FreeVariables, Inv: FreeVariables> FreeVariables for CommandKind<Pred
             CommandKind::Skip | CommandKind::Placeholder => IndexSet::default(),
             CommandKind::If(c) => c.as_slice().fv(),
             CommandKind::Loop(inv, c) => inv.fv().union(&c.as_slice().fv()).cloned().collect(),
-            CommandKind::O(_) => IndexSet::default(),
+            CommandKind::O(op) => op.fv(),
         }
     }
     fn funs(&self) -> IndexSet<Function> {
@@ -219,7 +218,7 @@ impl<Pred: FreeVariables, Inv: FreeVariables> FreeVariables for CommandKind<Pred
             CommandKind::Skip | CommandKind::Placeholder => IndexSet::default(),
             CommandKind::If(c) => c.as_slice().funs(),
             CommandKind::Loop(inv, c) => inv.funs().union(&c.as_slice().funs()).cloned().collect(),
-            CommandKind::O(_) => IndexSet::default(),
+            CommandKind::O(op) => op.funs(),
         }
     }
 }
@@ -291,6 +290,21 @@ impl FreeVariables for AExpr {
         }
     }
 }
+
+impl FreeVariables for Operation {
+    fn fv(&self) -> IndexSet<Target> {
+        match self {
+            Operation::Put(_, values) => values.iter().flat_map(|a| a.fv()).collect()
+        }
+    }
+
+    fn funs(&self) -> IndexSet<Function> {
+        match self {
+            Operation::Put(_, values) => values.iter().flat_map(|a| a.funs()).collect()
+        }
+    }
+}
+
 impl FreeVariables for BExpr {
     fn fv(&self) -> IndexSet<Target> {
         match self {

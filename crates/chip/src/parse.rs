@@ -137,6 +137,15 @@ pub enum ParseError {
         size: i32,
         actual: i32,
     },
+    #[error("Tuple space '{name}' is not defined")]
+    #[diagnostic(help("The tuple space '{name}' must be initialized"))]
+    UndefinedTupleSpace {
+        #[source_code]
+        src: String,
+        #[label = "This tuple space is not defined"]
+        err_span: SourceSpan,
+        name: String,
+    },
 }
 
 pub enum CustomError {
@@ -147,6 +156,11 @@ pub enum CustomError {
     TooManyTuples {
         size: i32,
         actual: i32,
+        from: usize,
+        to: usize,
+    },
+    UndefinedTupleSpace {
+        name: String,
         from: usize,
         to: usize,
     },
@@ -190,13 +204,18 @@ impl ParseError {
                     size,
                     actual,
                     from,
-                    to
-                } => {
-                    ParseError::TooManyTuples {
+                    to,
+                } => ParseError::TooManyTuples {
+                    src: prep_src(),
+                    err_span: (from, to).into(),
+                    size,
+                    actual,
+                },
+                CustomError::UndefinedTupleSpace { name, from, to } => {
+                    ParseError::UndefinedTupleSpace {
                         src: prep_src(),
                         err_span: (from, to).into(),
-                        size,
-                        actual,
+                        name,
                     }
                 }
             },
