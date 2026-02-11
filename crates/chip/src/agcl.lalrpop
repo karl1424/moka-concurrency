@@ -127,6 +127,7 @@ LTLGuard: Guard<(), ()> = {
 };
 Operation: Operation = {
     <Target> ".put" <TuplePut> => Operation::Put(<>),
+    <Target> ".get" <TupleGet> => Operation::Get(<>),
 }
 
 PredicateChain: PredicateChain = {
@@ -210,6 +211,7 @@ pub LTLProgram: LTLProgram = {
             if let CommandKind::O(operation) = &command.kind {
                 let target_var = match operation {
                     Operation::Put(target, _) => Some(target),
+                    Operation::Get(target, _) => Some(target),
                 };
                 
                 if let Some(Target::Variable(var)) = target_var {
@@ -246,6 +248,7 @@ pub LTLProgram: LTLProgram = {
                 if let CommandKind::O(operation) = &command.kind {
                     let target_var = match operation {
                         Operation::Put(target, _) => Some(target),
+                        Operation::Get(target, _) => Some(target),
                     };
 
                     if let Some(Target::Variable(var)) = target_var {
@@ -330,6 +333,16 @@ Tuple: Vec<Int> = {
 TuplePut: Vec<AExpr> = {
     "(" <values:SepNonEmpty<AExpr, ",">> ")" => values,
 };
+
+TupleGet: Vec<Field> = {
+    "(" <values:SepNonEmpty<Field, ",">> ")" => values,
+};
+
+Field: Field = {
+    <expr:AExpr> => Field::Expression(expr),
+    "_" => Field::Any,
+    "?" <Target> => Field::Variable(<>),
+}
 
 Value: Int = {
     <value:Int> => value,

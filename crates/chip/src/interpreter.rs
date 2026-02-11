@@ -6,8 +6,9 @@ use mcltl::ltl::expression::Literal;
 
 use crate::{
     ast::{
-        AExpr, AOp, BExpr, Command, CommandKind, Commands, Function, Int, LTLFormula, Locator,
-        LogicOp, Operation, RelOp, Target, TupleSpace, TupleSpaceSize, TupleSpaceType, Variable,
+        AExpr, AOp, BExpr, Command, CommandKind, Commands, Field, Function, Int, LTLFormula,
+        Locator, LogicOp, Operation, RelOp, Target, TupleSpace, TupleSpaceSize, TupleSpaceType,
+        Variable,
     },
     ast_ext::FreeVariables,
     parse::SourceSpan,
@@ -32,6 +33,7 @@ enum Instr {
     Goto(InstrPtr),
     Halt,
     Put(TupleSpaceSize, u32, Vec<AExpr>),
+    Get(TupleSpaceType, u32, Vec<Field>),
 }
 
 #[derive(Debug)]
@@ -205,8 +207,16 @@ impl Program {
             }
             CommandKind::O(Operation::Put(target, args)) => {
                 let index = self.tuple_space_index(target.name()).unwrap();
-                let tuple_max_size  = self.tuple_spaces[index as usize].size.clone();
-                self.push(Instr::Put(tuple_max_size, index, args.clone()), Some(cmd.span));
+                let tuple_max_size = self.tuple_spaces[index as usize].size.clone();
+                self.push(
+                    Instr::Put(tuple_max_size, index, args.clone()),
+                    Some(cmd.span),
+                );
+            }
+            CommandKind::O(Operation::Get(target, args)) => {
+                let index = self.tuple_space_index(target.name()).unwrap();
+                let tuple_type = self.tuple_spaces[index as usize].space_type.clone();
+                self.push(Instr::Get(tuple_type, index, args.clone()), Some(cmd.span));
             }
         }
     }
@@ -313,7 +323,9 @@ impl State {
                 let value = e.evaluate(p, self)?;
                 let mut memory = self.memory.clone();
                 memory[*v as usize] = value;
-                Ok(Either::Left([(memory, self.tuple_spaces.clone(), ptr.bump())].into_iter()))
+                Ok(Either::Left(
+                    [(memory, self.tuple_spaces.clone(), ptr.bump())].into_iter(),
+                ))
             }
             Instr::Branch { choices, otherwise } => {
                 let mut valid = Vec::new();
@@ -324,7 +336,9 @@ impl State {
                 }
                 if valid.is_empty() {
                     if let Some(target) = otherwise {
-                        Ok(Either::Left([(self.memory.clone(), self.tuple_spaces.clone(), *target)].into_iter()))
+                        Ok(Either::Left(
+                            [(self.memory.clone(), self.tuple_spaces.clone(), *target)].into_iter(),
+                        ))
                     } else {
                         Err(StepError::Stuck)
                     }
@@ -332,7 +346,9 @@ impl State {
                     Ok(Either::Right(valid.into_iter()))
                 }
             }
-            Instr::Goto(target) => Ok(Either::Left([(self.memory.clone(), self.tuple_spaces.clone(), *target)].into_iter())),
+            Instr::Goto(target) => Ok(Either::Left(
+                [(self.memory.clone(), self.tuple_spaces.clone(), *target)].into_iter(),
+            )),
             Instr::Halt => Err(StepError::Halt),
             Instr::Put(ts_max_size, ts_index, args) => {
                 let values: Vec<Int> = args
@@ -352,9 +368,67 @@ impl State {
                         tuple_spaces[*ts_index as usize].push(values);
                     }
                 }
-            
+
                 Ok(Either::Left(
                     [(self.memory.clone(), tuple_spaces, ptr.bump())].into_iter(),
+                ))
+            }
+            Instr::Get(ts_type, ts_index, fields) => {
+                let mut tuple_spaces = self.tuple_spaces.clone();
+                let mut new_memory = self.memory.clone();
+                let mut tuple = Vec::new(); 
+                match ts_type {
+                    TupleSpaceType::Queue | TupleSpaceType::FIFO => {
+                        let mut found_pos = None;
+
+                        for (pos, t) in tuple_spaces[*ts_index as usize].iter().enumerate() {
+                            if t.len() != fields.len() {
+                                continue;
+                            }
+
+                            let mut matches = true;
+
+                            for (v, f) in t.iter().zip(fields.iter()) {
+                                match f {
+                                    Field::Expression(expr) => {
+                                        let expected = expr.evaluate(p, self)?;
+                                        if *v != expected {
+                                            matches = false;
+                                            break;
+                                        }
+                                    }
+                                    _ => {}
+                                }
+                            }
+
+                            if matches {
+                                found_pos = Some(pos);
+                                tuple = tuple_spaces[*ts_index as usize][pos].clone();
+                                break;
+                            }
+                        }
+
+                        if let None = found_pos {
+                            return Err(StepError::Stuck)
+                        };
+
+                        for (v, f) in tuple.iter().zip(fields.iter()) {
+                            if let Field::Variable(var) = f {
+                                let index = p.variable_index(var.name()).unwrap();
+                                new_memory[index as usize] = *v;
+                            }
+                        }
+
+                        match found_pos {
+                            Some(pos) => tuple_spaces[*ts_index as usize].remove(pos),
+                            None => return Err(StepError::Stuck),
+                        };
+                    }
+                    TupleSpaceType::Random => {}
+                    TupleSpaceType::Stack | TupleSpaceType::LIFO => {}
+                }
+                Ok(Either::Left(
+                    [(new_memory, tuple_spaces, ptr.bump())].into_iter(),
                 ))
             }
         }

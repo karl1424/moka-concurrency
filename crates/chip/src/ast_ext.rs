@@ -4,7 +4,8 @@ use indexmap::IndexSet;
 use itertools::Either;
 
 use crate::ast::{
-    AExpr, AOp, Array, BExpr, Command, CommandKind, Commands, Function, Guard, LTLFormula, LogicOp, Operation, PredicateBlock, PredicateChain, Target, TargetDef, TargetKind, Variable
+    AExpr, AOp, Array, BExpr, Command, CommandKind, Commands, Field, Function, Guard, LTLFormula,
+    LogicOp, Operation, PredicateBlock, PredicateChain, Target, TargetDef, TargetKind, Variable,
 };
 
 impl Target<()> {
@@ -294,13 +295,29 @@ impl FreeVariables for AExpr {
 impl FreeVariables for Operation {
     fn fv(&self) -> IndexSet<Target> {
         match self {
-            Operation::Put(_, values) => values.iter().flat_map(|a| a.fv()).collect()
+            Operation::Put(_, values) => values.iter().flat_map(|a| a.fv()).collect(),
+            Operation::Get(_, values) => values
+                .iter()
+                .flat_map(|f| match f {
+                    Field::Expression(a) => a.fv(),
+                    Field::Variable(v) => v.fv(),
+                    _ => Default::default(),
+                })
+                .collect(),
         }
     }
 
     fn funs(&self) -> IndexSet<Function> {
         match self {
-            Operation::Put(_, values) => values.iter().flat_map(|a| a.funs()).collect()
+            Operation::Put(_, values) => values.iter().flat_map(|a| a.funs()).collect(),
+            Operation::Get(_, values) => values
+                .iter()
+                .flat_map(|f| match f {
+                    Field::Expression(a) => a.funs(),
+                    Field::Variable(v) => v.funs(),
+                    _ => Default::default(),
+                })
+                .collect(),
         }
     }
 }
