@@ -374,46 +374,52 @@ impl State {
                 ))
             }
             Instr::Get(ts_type, ts_index, fields) => {
-                let mut tuple_spaces = self.tuple_spaces.clone();
-                let mut new_memory = self.memory.clone();
-                let mut tuple = Vec::new();
+                let tuple_spaces = self.tuple_spaces.clone();
+                let memory = self.memory.clone();
+
+                let matches = |t: &Vec<i32>| -> Result<bool, StepError> {
+                    if t.len() != fields.len() {
+                        return Ok(false);
+                    }
+
+                    for (v, f) in t.iter().zip(fields.iter()) {
+                        match f {
+                            Field::Expression(expr) => {
+                                let expected = expr.evaluate(p, self)?;
+                                if *v != expected {
+                                    return Ok(false);
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+
+                    return Ok(true);
+                };
+
+                let update_mem = |pos: usize| -> (Memory, Vec<Vec<Vec<i32>>>) {
+                    let mut mem_copy = memory.clone();
+                    let mut ts_copy = tuple_spaces.clone();
+
+                    let tuple = ts_copy[*ts_index as usize].remove(pos);
+
+                    for (v, f) in tuple.iter().zip(fields.iter()) {
+                        if let Field::Variable(var) = f {
+                            let index = p.variable_index(var.name()).unwrap();
+                            mem_copy[index as usize] = *v;
+                        }
+                    }
+
+                    (mem_copy, ts_copy)
+                };
 
                 match ts_type {
                     TupleSpaceType::Random => {
                         let mut results = Vec::new();
 
                         for (pos, t) in tuple_spaces[*ts_index as usize].iter().enumerate() {
-                            if t.len() != fields.len() {
-                                continue;
-                            }
-
-                            let mut matches = true;
-
-                            for (v, f) in t.iter().zip(fields.iter()) {
-                                match f {
-                                    Field::Expression(expr) => {
-                                        let expected = expr.evaluate(p, self)?;
-                                        if *v != expected {
-                                            matches = false;
-                                            break;
-                                        }
-                                    }
-                                    _ => {}
-                                }
-                            }
-
-                            if matches {
-                                let mut ts_copy = tuple_spaces.clone();
-                                let mut mem_copy = new_memory.clone();
-
-                                tuple = ts_copy[*ts_index as usize].remove(pos);
-
-                                for (v, f) in tuple.iter().zip(fields.iter()) {
-                                    if let Field::Variable(var) = f {
-                                        let index = p.variable_index(var.name()).unwrap();
-                                        mem_copy[index as usize] = *v;
-                                    }
-                                }
+                            if matches(t)? {
+                                let (mem_copy, ts_copy) = update_mem(pos);
 
                                 results.push((mem_copy, ts_copy, ptr.bump()));
                             }
@@ -429,101 +435,35 @@ impl State {
                         let mut found_pos = None;
 
                         for (pos, t) in tuple_spaces[*ts_index as usize].iter().enumerate() {
-                            if t.len() != fields.len() {
-                                continue;
-                            }
-
-                            let mut matches = true;
-
-                            for (v, f) in t.iter().zip(fields.iter()) {
-                                match f {
-                                    Field::Expression(expr) => {
-                                        let expected = expr.evaluate(p, self)?;
-                                        if *v != expected {
-                                            matches = false;
-                                            break;
-                                        }
-                                    }
-                                    _ => {}
-                                }
-                            }
-
-                            if matches {
+                            if matches(t)? {
                                 found_pos = Some(pos);
-                                tuple = tuple_spaces[*ts_index as usize][pos].clone();
                                 break;
                             }
                         }
 
-                        if let None = found_pos {
+                        if let Some(pos) = found_pos {
+                            let (new_mem, new_ts) = update_mem(pos);
+                            Ok(Either::Left([(new_mem, new_ts, ptr.bump())].into_iter()))
+                        } else {
                             return Err(StepError::Stuck);
-                        };
-
-                        for (v, f) in tuple.iter().zip(fields.iter()) {
-                            if let Field::Variable(var) = f {
-                                let index = p.variable_index(var.name()).unwrap();
-                                new_memory[index as usize] = *v;
-                            }
                         }
-
-                        match found_pos {
-                            Some(pos) => tuple_spaces[*ts_index as usize].remove(pos),
-                            None => return Err(StepError::Stuck),
-                        };
-
-                        Ok(Either::Left(
-                            [(new_memory, tuple_spaces, ptr.bump())].into_iter(),
-                        ))
                     }
                     TupleSpaceType::Stack | TupleSpaceType::LIFO => {
                         let mut found_pos = None;
 
                         for (pos, t) in tuple_spaces[*ts_index as usize].iter().enumerate().rev() {
-                            if t.len() != fields.len() {
-                                continue;
-                            }
-
-                            let mut matches = true;
-
-                            for (v, f) in t.iter().zip(fields.iter()) {
-                                match f {
-                                    Field::Expression(expr) => {
-                                        let expected = expr.evaluate(p, self)?;
-                                        if *v != expected {
-                                            matches = false;
-                                            break;
-                                        }
-                                    }
-                                    _ => {}
-                                }
-                            }
-
-                            if matches {
+                            if matches(t)? {
                                 found_pos = Some(pos);
-                                tuple = tuple_spaces[*ts_index as usize][pos].clone();
                                 break;
                             }
                         }
 
-                        if let None = found_pos {
+                        if let Some(pos) = found_pos {
+                            let (new_mem, new_ts) = update_mem(pos);
+                            Ok(Either::Left([(new_mem, new_ts, ptr.bump())].into_iter()))
+                        } else {
                             return Err(StepError::Stuck);
-                        };
-
-                        for (v, f) in tuple.iter().zip(fields.iter()) {
-                            if let Field::Variable(var) = f {
-                                let index = p.variable_index(var.name()).unwrap();
-                                new_memory[index as usize] = *v;
-                            }
                         }
-
-                        match found_pos {
-                            Some(pos) => tuple_spaces[*ts_index as usize].remove(pos),
-                            None => return Err(StepError::Stuck),
-                        };
-
-                        Ok(Either::Left(
-                            [(new_memory, tuple_spaces, ptr.bump())].into_iter(),
-                        ))
                     }
                 }
             }
