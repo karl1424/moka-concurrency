@@ -34,6 +34,7 @@ enum Instr {
     Halt,
     Put(TupleSpaceSize, u32, Vec<AExpr>),
     Get(TupleSpaceType, u32, Vec<Field>),
+    Query(TupleSpaceType, u32, Vec<Field>),
 }
 
 #[derive(Debug)]
@@ -218,6 +219,14 @@ impl Program {
                 let tuple_type = self.tuple_spaces[index as usize].space_type.clone();
                 self.push(Instr::Get(tuple_type, index, args.clone()), Some(cmd.span));
             }
+            CommandKind::O(Operation::Query(target, args)) => {
+                let index = self.tuple_space_index(target.name()).unwrap();
+                let tuple_type = self.tuple_spaces[index as usize].space_type.clone();
+                self.push(
+                    Instr::Query(tuple_type, index, args.clone()),
+                    Some(cmd.span),
+                );
+            }
         }
     }
 }
@@ -315,6 +324,138 @@ impl State {
         p: &Program,
         ptr: InstrPtr,
     ) -> Result<impl Iterator<Item = (Memory, Vec<Vec<Vec<Int>>>, InstrPtr)>, StepError> {
+        let matches = |t: &Vec<i32>, fields: &Vec<Field>| -> Result<bool, StepError> {
+            if t.len() != fields.len() {
+                return Ok(false);
+            }
+
+            for (v, f) in t.iter().zip(fields.iter()) {
+                match f {
+                    Field::Expression(expr) => {
+                        let expected = expr.evaluate(p, self)?;
+                        if *v != expected {
+                            return Ok(false);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+
+            return Ok(true);
+        };
+        let update_mem = |pos: usize,
+                          fields: &Vec<Field>,
+                          memory: Vec<i32>,
+                          tuple_spaces: Vec<Vec<Vec<i32>>>,
+                          ts_index: &u32,
+                          remove: bool|
+         -> (Memory, Vec<Vec<Vec<i32>>>) {
+            let mut mem_copy = memory.clone();
+            let mut ts_copy = tuple_spaces.clone();
+
+            let tuple = if remove {
+                ts_copy[*ts_index as usize].remove(pos)
+            } else {
+                ts_copy[*ts_index as usize][pos].clone()
+            };
+            for (v, f) in tuple.iter().zip(fields.iter()) {
+                if let Field::Variable(var) = f {
+                    let index = p.variable_index(var.name()).unwrap();
+                    mem_copy[index as usize] = *v;
+                }
+            }
+
+            (mem_copy, ts_copy)
+        };
+        let match_tuple_space_type = |ts_type: &TupleSpaceType,
+                                      ts_index: &u32,
+                                      fields: &Vec<Field>,
+                                      remove: bool|
+         -> Result<
+            Either<
+                std::array::IntoIter<(Memory, Vec<Vec<Vec<Int>>>, InstrPtr), 1>,
+                std::vec::IntoIter<(Memory, Vec<Vec<Vec<Int>>>, InstrPtr)>,
+            >,
+            StepError,
+        > {
+            let tuple_spaces = self.tuple_spaces.clone();
+            let memory = self.memory.clone();
+
+            match ts_type {
+                TupleSpaceType::Random => {
+                    let mut results = Vec::new();
+
+                    for (pos, t) in tuple_spaces[*ts_index as usize].iter().enumerate() {
+                        if matches(t, fields)? {
+                            let (mem_copy, ts_copy) = update_mem(
+                                pos,
+                                fields,
+                                memory.clone(),
+                                tuple_spaces.clone(),
+                                ts_index,
+                                remove,
+                            );
+
+                            results.push((mem_copy, ts_copy, ptr.bump()));
+                        }
+                    }
+
+                    if results.is_empty() {
+                        return Err(StepError::Stuck);
+                    }
+
+                    Ok(Either::Right(results.into_iter()))
+                }
+                TupleSpaceType::Queue | TupleSpaceType::FIFO => {
+                    let mut found_pos = None;
+
+                    for (pos, t) in tuple_spaces[*ts_index as usize].iter().enumerate() {
+                        if matches(t, fields)? {
+                            found_pos = Some(pos);
+                            break;
+                        }
+                    }
+
+                    if let Some(pos) = found_pos {
+                        let (new_mem, new_ts) = update_mem(
+                            pos,
+                            fields,
+                            memory.clone(),
+                            tuple_spaces.clone(),
+                            ts_index,
+                            remove,
+                        );
+                        Ok(Either::Left([(new_mem, new_ts, ptr.bump())].into_iter()))
+                    } else {
+                        return Err(StepError::Stuck);
+                    }
+                }
+                TupleSpaceType::Stack | TupleSpaceType::LIFO => {
+                    let mut found_pos = None;
+
+                    for (pos, t) in tuple_spaces[*ts_index as usize].iter().enumerate().rev() {
+                        if matches(t, fields)? {
+                            found_pos = Some(pos);
+                            break;
+                        }
+                    }
+
+                    if let Some(pos) = found_pos {
+                        let (new_mem, new_ts) = update_mem(
+                            pos,
+                            fields,
+                            memory.clone(),
+                            tuple_spaces.clone(),
+                            ts_index,
+                            remove,
+                        );
+                        Ok(Either::Left([(new_mem, new_ts, ptr.bump())].into_iter()))
+                    } else {
+                        return Err(StepError::Stuck);
+                    }
+                }
+            }
+        };
         match &p[ptr] {
             Instr::Nop => Ok(Either::Left(
                 [(self.memory.clone(), self.tuple_spaces.clone(), ptr.bump())].into_iter(),
@@ -374,98 +515,10 @@ impl State {
                 ))
             }
             Instr::Get(ts_type, ts_index, fields) => {
-                let tuple_spaces = self.tuple_spaces.clone();
-                let memory = self.memory.clone();
-
-                let matches = |t: &Vec<i32>| -> Result<bool, StepError> {
-                    if t.len() != fields.len() {
-                        return Ok(false);
-                    }
-
-                    for (v, f) in t.iter().zip(fields.iter()) {
-                        match f {
-                            Field::Expression(expr) => {
-                                let expected = expr.evaluate(p, self)?;
-                                if *v != expected {
-                                    return Ok(false);
-                                }
-                            }
-                            _ => {}
-                        }
-                    }
-
-                    return Ok(true);
-                };
-
-                let update_mem = |pos: usize| -> (Memory, Vec<Vec<Vec<i32>>>) {
-                    let mut mem_copy = memory.clone();
-                    let mut ts_copy = tuple_spaces.clone();
-
-                    let tuple = ts_copy[*ts_index as usize].remove(pos);
-
-                    for (v, f) in tuple.iter().zip(fields.iter()) {
-                        if let Field::Variable(var) = f {
-                            let index = p.variable_index(var.name()).unwrap();
-                            mem_copy[index as usize] = *v;
-                        }
-                    }
-
-                    (mem_copy, ts_copy)
-                };
-
-                match ts_type {
-                    TupleSpaceType::Random => {
-                        let mut results = Vec::new();
-
-                        for (pos, t) in tuple_spaces[*ts_index as usize].iter().enumerate() {
-                            if matches(t)? {
-                                let (mem_copy, ts_copy) = update_mem(pos);
-
-                                results.push((mem_copy, ts_copy, ptr.bump()));
-                            }
-                        }
-
-                        if results.is_empty() {
-                            return Err(StepError::Stuck);
-                        }
-
-                        Ok(Either::Right(results.into_iter()))
-                    }
-                    TupleSpaceType::Queue | TupleSpaceType::FIFO => {
-                        let mut found_pos = None;
-
-                        for (pos, t) in tuple_spaces[*ts_index as usize].iter().enumerate() {
-                            if matches(t)? {
-                                found_pos = Some(pos);
-                                break;
-                            }
-                        }
-
-                        if let Some(pos) = found_pos {
-                            let (new_mem, new_ts) = update_mem(pos);
-                            Ok(Either::Left([(new_mem, new_ts, ptr.bump())].into_iter()))
-                        } else {
-                            return Err(StepError::Stuck);
-                        }
-                    }
-                    TupleSpaceType::Stack | TupleSpaceType::LIFO => {
-                        let mut found_pos = None;
-
-                        for (pos, t) in tuple_spaces[*ts_index as usize].iter().enumerate().rev() {
-                            if matches(t)? {
-                                found_pos = Some(pos);
-                                break;
-                            }
-                        }
-
-                        if let Some(pos) = found_pos {
-                            let (new_mem, new_ts) = update_mem(pos);
-                            Ok(Either::Left([(new_mem, new_ts, ptr.bump())].into_iter()))
-                        } else {
-                            return Err(StepError::Stuck);
-                        }
-                    }
-                }
+                match_tuple_space_type(ts_type, ts_index, fields, true)
+            }
+            Instr::Query(ts_type, ts_index, fields) => {
+                match_tuple_space_type(ts_type, ts_index, fields, false)
             }
         }
     }

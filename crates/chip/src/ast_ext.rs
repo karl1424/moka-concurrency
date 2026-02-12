@@ -296,7 +296,7 @@ impl FreeVariables for Operation {
     fn fv(&self) -> IndexSet<Target> {
         match self {
             Operation::Put(_, values) => values.iter().flat_map(|a| a.fv()).collect(),
-            Operation::Get(_, values) => values
+            Operation::Get(_, values) | Operation::Query(_, values) => values
                 .iter()
                 .flat_map(|f| match f {
                     Field::Expression(a) => a.fv(),
@@ -310,7 +310,7 @@ impl FreeVariables for Operation {
     fn funs(&self) -> IndexSet<Function> {
         match self {
             Operation::Put(_, values) => values.iter().flat_map(|a| a.funs()).collect(),
-            Operation::Get(_, values) => values
+            Operation::Get(_, values) | Operation::Query(_, values) => values
                 .iter()
                 .flat_map(|f| match f {
                     Field::Expression(a) => a.funs(),

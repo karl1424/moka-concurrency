@@ -43,19 +43,6 @@ pub struct Command<Pred, Inv> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum Operation {
-    Put(Target<Box<AExpr>>, Vec<AExpr>),
-    Get(Target<Box<AExpr>>, Vec<Field>),
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum Field {
-    Expression(AExpr),
-    Any,
-    Variable(Target<Box<AExpr>>),
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum CommandKind<Pred, Inv> {
     Assignment(Target<Box<AExpr>>, AExpr),
     Skip,
@@ -65,6 +52,19 @@ pub enum CommandKind<Pred, Inv> {
     O(Operation),
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Operation {
+    Put(Target<Box<AExpr>>, Vec<AExpr>),
+    Get(Target<Box<AExpr>>, Vec<Field>),
+    Query(Target<Box<AExpr>>, Vec<Field>),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Field {
+    Expression(AExpr),
+    Any,
+    Variable(Target<Box<AExpr>>),
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Guard<Pred, Inv> {
