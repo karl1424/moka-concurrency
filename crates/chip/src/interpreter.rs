@@ -319,143 +319,156 @@ impl State {
 
         all_stuck_or_halted && any_stuck
     }
-    fn step_at(
-        &self,
-        p: &Program,
-        ptr: InstrPtr,
-    ) -> Result<impl Iterator<Item = (Memory, Vec<Vec<Vec<Int>>>, InstrPtr)>, StepError> {
-        let matches = |t: &Vec<i32>, fields: &Vec<Field>| -> Result<bool, StepError> {
-            if t.len() != fields.len() {
-                return Ok(false);
-            }
 
-            for (v, f) in t.iter().zip(fields.iter()) {
-                match f {
-                    Field::Expression(expr) => {
-                        let expected = expr.evaluate(p, self)?;
-                        if *v != expected {
-                            return Ok(false);
-                        }
+    fn matches(&self, t: &Vec<i32>, fields: &Vec<Field>, p: &Program,) -> Result<bool, StepError> {
+        if t.len() != fields.len() {
+            return Ok(false);
+        }
+
+        for (v, f) in t.iter().zip(fields.iter()) {
+            match f {
+                Field::Expression(expr) => {
+                    let expected = expr.evaluate(p, self)?;
+                    if *v != expected {
+                        return Ok(false);
                     }
-                    _ => {}
                 }
+                _ => {}
             }
+        }
 
-            return Ok(true);
+        return Ok(true);
+    }
+    fn update_mem(
+        &self,
+        pos: usize,
+        fields: &Vec<Field>,
+        memory: Vec<i32>,
+        tuple_spaces: Vec<Vec<Vec<i32>>>,
+        ts_index: &u32,
+        p: &Program,
+        remove: bool,
+    ) -> (Memory, Vec<Vec<Vec<i32>>>) {
+        let mut mem_copy = memory.clone();
+        let mut ts_copy = tuple_spaces.clone();
+
+        let tuple = if remove {
+            ts_copy[*ts_index as usize].remove(pos)
+        } else {
+            ts_copy[*ts_index as usize][pos].clone()
         };
-        let update_mem = |pos: usize,
-                          fields: &Vec<Field>,
-                          memory: Vec<i32>,
-                          tuple_spaces: Vec<Vec<Vec<i32>>>,
-                          ts_index: &u32,
-                          remove: bool|
-         -> (Memory, Vec<Vec<Vec<i32>>>) {
-            let mut mem_copy = memory.clone();
-            let mut ts_copy = tuple_spaces.clone();
-
-            let tuple = if remove {
-                ts_copy[*ts_index as usize].remove(pos)
-            } else {
-                ts_copy[*ts_index as usize][pos].clone()
-            };
-            for (v, f) in tuple.iter().zip(fields.iter()) {
-                if let Field::Variable(var) = f {
-                    let index = p.variable_index(var.name()).unwrap();
-                    mem_copy[index as usize] = *v;
-                }
+        for (v, f) in tuple.iter().zip(fields.iter()) {
+            if let Field::Variable(var) = f {
+                let index = p.variable_index(var.name()).unwrap();
+                mem_copy[index as usize] = *v;
             }
+        }
 
-            (mem_copy, ts_copy)
-        };
-        let match_tuple_space_type = |ts_type: &TupleSpaceType,
-                                      ts_index: &u32,
-                                      fields: &Vec<Field>,
-                                      remove: bool|
-         -> Result<
+        (mem_copy, ts_copy)
+    }
+
+    fn match_tuple_space_type(
+        &self,
+        ts_type: &TupleSpaceType,
+        ts_index: &u32,
+        fields: &Vec<Field>,
+        p: &Program,
+        ptr: &InstrPtr,
+        remove: bool,
+    ) -> Result<
             Either<
                 std::array::IntoIter<(Memory, Vec<Vec<Vec<Int>>>, InstrPtr), 1>,
                 std::vec::IntoIter<(Memory, Vec<Vec<Vec<Int>>>, InstrPtr)>,
             >,
             StepError,
-        > {
-            let tuple_spaces = self.tuple_spaces.clone();
-            let memory = self.memory.clone();
+        >{
+        let tuple_spaces = self.tuple_spaces.clone();
+        let memory = self.memory.clone();
 
-            match ts_type {
-                TupleSpaceType::Random => {
-                    let mut results = Vec::new();
+        match ts_type {
+            TupleSpaceType::Random => {
+                let mut results = Vec::new();
 
-                    for (pos, t) in tuple_spaces[*ts_index as usize].iter().enumerate() {
-                        if matches(t, fields)? {
-                            let (mem_copy, ts_copy) = update_mem(
-                                pos,
-                                fields,
-                                memory.clone(),
-                                tuple_spaces.clone(),
-                                ts_index,
-                                remove,
-                            );
-
-                            results.push((mem_copy, ts_copy, ptr.bump()));
-                        }
-                    }
-
-                    if results.is_empty() {
-                        return Err(StepError::Stuck);
-                    }
-
-                    Ok(Either::Right(results.into_iter()))
-                }
-                TupleSpaceType::Queue | TupleSpaceType::FIFO => {
-                    let mut found_pos = None;
-
-                    for (pos, t) in tuple_spaces[*ts_index as usize].iter().enumerate() {
-                        if matches(t, fields)? {
-                            found_pos = Some(pos);
-                            break;
-                        }
-                    }
-
-                    if let Some(pos) = found_pos {
-                        let (new_mem, new_ts) = update_mem(
+                for (pos, t) in tuple_spaces[*ts_index as usize].iter().enumerate() {
+                    if self.matches(t, fields, p)? {
+                        let (mem_copy, ts_copy) = self.update_mem(
                             pos,
                             fields,
                             memory.clone(),
                             tuple_spaces.clone(),
                             ts_index,
+                            p,
                             remove,
                         );
-                        Ok(Either::Left([(new_mem, new_ts, ptr.bump())].into_iter()))
-                    } else {
-                        return Err(StepError::Stuck);
+
+                        results.push((mem_copy, ts_copy, ptr.bump()));
                     }
                 }
-                TupleSpaceType::Stack | TupleSpaceType::LIFO => {
-                    let mut found_pos = None;
 
-                    for (pos, t) in tuple_spaces[*ts_index as usize].iter().enumerate().rev() {
-                        if matches(t, fields)? {
-                            found_pos = Some(pos);
-                            break;
-                        }
-                    }
+                if results.is_empty() {
+                    return Err(StepError::Stuck);
+                }
 
-                    if let Some(pos) = found_pos {
-                        let (new_mem, new_ts) = update_mem(
-                            pos,
-                            fields,
-                            memory.clone(),
-                            tuple_spaces.clone(),
-                            ts_index,
-                            remove,
-                        );
-                        Ok(Either::Left([(new_mem, new_ts, ptr.bump())].into_iter()))
-                    } else {
-                        return Err(StepError::Stuck);
+                Ok(Either::Right(results.into_iter()))
+            }
+            TupleSpaceType::Queue | TupleSpaceType::FIFO => {
+                let mut found_pos = None;
+
+                for (pos, t) in tuple_spaces[*ts_index as usize].iter().enumerate() {
+                    if self.matches(t, fields, p)? {
+                        found_pos = Some(pos);
+                        break;
                     }
+                }
+
+                if let Some(pos) = found_pos {
+                    let (new_mem, new_ts) = self.update_mem(
+                        pos,
+                        fields,
+                        memory.clone(),
+                        tuple_spaces.clone(),
+                        ts_index,
+                        p,
+                        remove,
+                    );
+                    Ok(Either::Left([(new_mem, new_ts, ptr.bump())].into_iter()))
+                } else {
+                    return Err(StepError::Stuck);
                 }
             }
-        };
+            TupleSpaceType::Stack | TupleSpaceType::LIFO => {
+                let mut found_pos = None;
+
+                for (pos, t) in tuple_spaces[*ts_index as usize].iter().enumerate().rev() {
+                    if self.matches(t, fields, p)? {
+                        found_pos = Some(pos);
+                        break;
+                    }
+                }
+
+                if let Some(pos) = found_pos {
+                    let (new_mem, new_ts) = self.update_mem(
+                        pos,
+                        fields,
+                        memory.clone(),
+                        tuple_spaces.clone(),
+                        ts_index,
+                        p,
+                        remove,
+                    );
+                    Ok(Either::Left([(new_mem, new_ts, ptr.bump())].into_iter()))
+                } else {
+                    return Err(StepError::Stuck);
+                }
+            }
+        }
+    }
+
+    fn step_at(
+        &self,
+        p: &Program,
+        ptr: InstrPtr,
+    ) -> Result<impl Iterator<Item = (Memory, Vec<Vec<Vec<Int>>>, InstrPtr)>, StepError> {
         match &p[ptr] {
             Instr::Nop => Ok(Either::Left(
                 [(self.memory.clone(), self.tuple_spaces.clone(), ptr.bump())].into_iter(),
@@ -503,6 +516,8 @@ impl State {
                     TupleSpaceSize::Finite(max_size) => {
                         if tuple_spaces[*ts_index as usize].len() < *max_size as usize {
                             tuple_spaces[*ts_index as usize].push(values);
+                        } else {
+                            return Err(StepError::Stuck);
                         }
                     }
                     TupleSpaceSize::Infinite => {
@@ -515,10 +530,10 @@ impl State {
                 ))
             }
             Instr::Get(ts_type, ts_index, fields) => {
-                match_tuple_space_type(ts_type, ts_index, fields, true)
+                self.match_tuple_space_type(ts_type, ts_index, fields, p, &ptr, true)
             }
             Instr::Query(ts_type, ts_index, fields) => {
-                match_tuple_space_type(ts_type, ts_index, fields, false)
+                self.match_tuple_space_type(ts_type, ts_index, fields, p, &ptr, false)
             }
         }
     }
