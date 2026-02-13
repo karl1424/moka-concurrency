@@ -3,7 +3,9 @@ use std::fmt::Display;
 use itertools::Itertools;
 
 use crate::ast::{
-    AExpr, AOp, Array, BExpr, Command, CommandKind, Commands, Function, Guard, LTLFormula, LTLProgram, Locator, LogicOp, PredicateBlock, PredicateChain, Quantifier, RelOp, Target, Variable
+    AExpr, AOp, Array, BExpr, Command, CommandKind, Commands, Field, Function, Guard, LTLFormula,
+    LTLProgram, Locator, LogicOp, Operation, PredicateBlock, PredicateChain, Quantifier, RelOp,
+    Target, Variable,
 };
 
 impl Display for Variable {
@@ -164,9 +166,37 @@ impl Display for BExpr {
             BExpr::Logic(l, op, r) => write!(f, "({l} {op} {r})"),
             BExpr::Not(b) => write!(f, "!{b}"),
             BExpr::Quantified(q, x, b) => write!(f, "({q} {x} :: {b})"),
+            BExpr::OP(o) => write!(f, "{o}"),
         }
     }
 }
+
+impl Display for Operation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Operation::Put(t, args) => {
+                write!(f, "{t}.putP({})", args.iter().format(", "))
+            }
+            Operation::Get(t, fields) => {
+                write!(f, "{t}.getP({})", fields.iter().format(", "))
+            }
+            Operation::Query(t, fields) => {
+                write!(f, "{t}.queryP({})", fields.iter().format(", "))
+            }
+        }
+    }
+}
+
+impl Display for Field {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Field::Expression(e) => write!(f, "{e}"),
+            Field::Any => write!(f, "_"),
+            Field::Variable(v) => write!(f, "?{v}"),
+        }
+    }
+}
+
 impl Display for Quantifier {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {

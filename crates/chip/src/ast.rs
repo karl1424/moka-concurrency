@@ -109,6 +109,7 @@ pub enum BExpr {
     Logic(Box<BExpr>, LogicOp, Box<BExpr>),
     Not(Box<BExpr>),
     Quantified(Quantifier, Target<()>, Box<BExpr>),
+    OP(Operation)
 }
 
 pub type Predicate = BExpr;

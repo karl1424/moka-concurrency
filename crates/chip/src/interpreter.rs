@@ -320,7 +320,7 @@ impl State {
         all_stuck_or_halted && any_stuck
     }
 
-    fn matches(&self, t: &Vec<i32>, fields: &Vec<Field>, p: &Program,) -> Result<bool, StepError> {
+    fn matches(&self, t: &Vec<i32>, fields: &Vec<Field>, p: &Program) -> Result<bool, StepError> {
         if t.len() != fields.len() {
             return Ok(false);
         }
@@ -376,12 +376,12 @@ impl State {
         ptr: &InstrPtr,
         remove: bool,
     ) -> Result<
-            Either<
-                std::array::IntoIter<(Memory, Vec<Vec<Vec<Int>>>, InstrPtr), 1>,
-                std::vec::IntoIter<(Memory, Vec<Vec<Vec<Int>>>, InstrPtr)>,
-            >,
-            StepError,
-        >{
+        Either<
+            std::array::IntoIter<(Memory, Vec<Vec<Vec<Int>>>, InstrPtr), 1>,
+            std::vec::IntoIter<(Memory, Vec<Vec<Vec<Int>>>, InstrPtr)>,
+        >,
+        StepError,
+    > {
         let tuple_spaces = self.tuple_spaces.clone();
         let memory = self.memory.clone();
 
@@ -692,6 +692,7 @@ impl BExpr {
             }
             BExpr::Not(e) => !e.evaluate(p, state)?,
             BExpr::Quantified(_, _, _) => todo!(),
+            BExpr::OP(_) => true,
         })
     }
 }

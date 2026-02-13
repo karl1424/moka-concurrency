@@ -65,6 +65,23 @@ pub BExpr: BExpr = {
 };
 BExpr_: BExpr = BExpr;
 
+pub MokaBExpr: BExpr = {
+    #[precedence(level="0")]
+    <l:AExpr_> <op:RelOp> <r:AExpr_> => BExpr::Rel(l, op, r),
+    "true" => BExpr::Bool(true),
+    "false" => BExpr::Bool(false),
+    "!" <MokaBExpr> => BExpr::Not(Box::new(<>)),
+    "(" <MokaBExpr_> ")",
+    <OperationP> => BExpr::OP(<>),
+
+    #[precedence(level="1")] #[assoc(side="left")]
+    <l:MokaBExpr> "&" <r:MokaBExpr> => BExpr::logic(l, LogicOp::Land, r),
+
+    #[precedence(level="2")] #[assoc(side="left")]
+    <l:MokaBExpr> "|" <r:MokaBExpr> => BExpr::logic(l, LogicOp::Lor, r),
+};
+MokaBExpr_: BExpr = BExpr;
+
 RelOp: RelOp = {
     "<"  => RelOp::Lt,
     ">"  => RelOp::Gt,
@@ -123,13 +140,20 @@ LTLCommandKind: CommandKind<(), ()> = {
 };
 LTLGuards: Vec<Guard<(), ()>> = SepNonEmpty<LTLGuard, "[]">;
 LTLGuard: Guard<(), ()> = {
-    <l:@L> <guard:BExpr> <r:@R> "->" <cmds:LTLCommands> => Guard { guard, cmds, guard_span: (l, r - l).into() },
+    <l:@L> <guard:MokaBExpr> <r:@R> "->" <cmds:LTLCommands> => Guard { guard, cmds, guard_span: (l, r - l).into() },
 };
+
 Operation: Operation = {
     <Target> ".put" <TuplePut> => Operation::Put(<>),
     <Target> ".get" <TupleGet> => Operation::Get(<>),
     <Target> ".query" <TupleGet> => Operation::Query(<>),
-}
+};
+
+OperationP: Operation = {
+    <Target> ".putP" <TuplePut> => Operation::Put(<>),
+    <Target> ".getP" <TupleGet> => Operation::Get(<>),
+    <Target> ".queryP" <TupleGet> => Operation::Query(<>),
+};
 
 PredicateChain: PredicateChain = {
     <predicates:PredicateBlock*> => PredicateChain { <> }

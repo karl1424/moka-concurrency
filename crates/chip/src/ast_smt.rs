@@ -41,6 +41,7 @@ impl BExpr {
                     Quantifier::Forall => smtlib::terms::forall(st, v, e.smt(st)),
                 }
             }
+            BExpr::OP(_) => panic!("operations not allowed in Chip"),
         }
     }
 }

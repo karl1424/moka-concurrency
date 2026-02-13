@@ -334,6 +334,7 @@ impl FreeVariables for BExpr {
                 fv.shift_remove(x);
                 fv
             }
+            BExpr::OP(o) => o.fv(),
         }
     }
     fn funs(&self) -> IndexSet<Function> {
@@ -343,6 +344,7 @@ impl FreeVariables for BExpr {
             BExpr::Logic(l, _, r) => l.funs().union(&r.funs()).cloned().collect(),
             BExpr::Not(x) => x.funs(),
             BExpr::Quantified(_, _, b) => b.funs(),
+            BExpr::OP(o) => o.funs(),
         }
     }
 }
@@ -413,6 +415,7 @@ impl BExpr {
                     BExpr::Quantified(*q, v.clone(), Box::new(e.subst_var(t, x)))
                 }
             }
+            BExpr::OP(o) => BExpr::OP(o.subst_var(t, x)),
         }
     }
 }
@@ -428,6 +431,35 @@ impl AExpr {
             AExpr::Function(f) => AExpr::Function(f.subst_var(t, x)),
             // TODO: Should we substitute here?
             AExpr::Old(_) => self.clone(),
+        }
+    }
+}
+
+impl Operation {
+    pub fn subst_var<T>(&self, t: &Target<T>, x: &AExpr) -> Operation {
+        match self {
+            Operation::Put(target, values) => Operation::Put(
+                target.clone(),
+                values.iter().map(|a| a.subst_var(t, x)).collect(),
+            ),
+            Operation::Get(target, fields) => Operation::Get(
+                target.clone(),
+                fields.iter().map(|f| f.subst_var(t, x)).collect(),
+            ),
+            Operation::Query(target, fields) => Operation::Query(
+                target.clone(),
+                fields.iter().map(|f| f.subst_var(t, x)).collect(),
+            ),
+        }
+    }
+}
+
+impl Field {
+    pub fn subst_var<T>(&self, t: &Target<T>, x: &AExpr) -> Field {
+        match self {
+            Field::Expression(e) => Field::Expression(e.subst_var(t, x)),
+            Field::Any => Field::Any,
+            Field::Variable(v) => Field::Variable(v.clone()),
         }
     }
 }
