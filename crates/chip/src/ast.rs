@@ -50,6 +50,8 @@ pub enum CommandKind<Pred, Inv> {
     If(Vec<Guard<Pred, Inv>>),
     Loop(Inv, Vec<Guard<Pred, Inv>>),
     O(Operation),
+    Send(Target<Box<AExpr>>, AExpr),
+    Receive(Target<Box<AExpr>>, Target<Box<AExpr>>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -109,7 +111,7 @@ pub enum BExpr {
     Logic(Box<BExpr>, LogicOp, Box<BExpr>),
     Not(Box<BExpr>),
     Quantified(Quantifier, Target<()>, Box<BExpr>),
-    OP(Operation)
+    OP(Operation),
 }
 
 pub type Predicate = BExpr;

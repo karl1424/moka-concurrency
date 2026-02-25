@@ -211,6 +211,8 @@ impl<Pred: FreeVariables, Inv: FreeVariables> FreeVariables for CommandKind<Pred
             CommandKind::If(c) => c.as_slice().fv(),
             CommandKind::Loop(inv, c) => inv.fv().union(&c.as_slice().fv()).cloned().collect(),
             CommandKind::O(op) => op.fv(),
+            CommandKind::Send(_, a) => a.fv(),
+            CommandKind::Receive(_, x) => x.fv(),
         }
     }
     fn funs(&self) -> IndexSet<Function> {
@@ -220,6 +222,8 @@ impl<Pred: FreeVariables, Inv: FreeVariables> FreeVariables for CommandKind<Pred
             CommandKind::If(c) => c.as_slice().funs(),
             CommandKind::Loop(inv, c) => inv.funs().union(&c.as_slice().funs()).cloned().collect(),
             CommandKind::O(op) => op.funs(),
+            CommandKind::Send(_, a) => a.funs(),
+            CommandKind::Receive(_, x) => x.funs(),
         }
     }
 }

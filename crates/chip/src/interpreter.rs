@@ -35,6 +35,8 @@ enum Instr {
     Put(BufferSize, u32, Vec<AExpr>),
     Get(TupleSpaceType, u32, Vec<Field>),
     Query(TupleSpaceType, u32, Vec<Field>),
+    Send(BufferSize, u32, AExpr),
+    Receive(u32, u32),
 }
 
 #[derive(Debug)]
@@ -153,6 +155,13 @@ impl Program {
             .map(|idx| idx as _)
     }
 
+    fn channel_index(&self, name: &str) -> Option<u32> {
+        self.channels
+            .iter()
+            .position(|v| v.name.0 == name)
+            .map(|idx| idx as _)
+    }
+
     fn current(&self) -> InstrPtr {
         InstrPtr(self.instrs.len() as _)
     }
@@ -243,6 +252,16 @@ impl Program {
                     Instr::Query(tuple_type, index, args.clone()),
                     Some(cmd.span),
                 );
+            }
+            CommandKind::Send(ch, e) => {
+                let index = self.channel_index(ch.name()).unwrap();
+                let size = self.channels[index as usize].size.clone();
+                self.push(Instr::Send(size, index, e.clone()), Some(cmd.span));
+            }
+            CommandKind::Receive(ch, v) => {
+                let ch_index = self.channel_index(ch.name()).unwrap();
+                let var_index = self.variable_index(v.name()).unwrap();
+                self.push(Instr::Receive(ch_index, var_index), Some(cmd.span));
             }
         }
     }
@@ -710,6 +729,47 @@ impl State {
             }
             Instr::Query(ts_type, ts_index, fields) => {
                 self.match_tuple_space_type(ts_type, ts_index, fields, p, &ptr, false)
+            }
+            Instr::Send(buffer_size, ch_index, e) => {
+                let value = e.evaluate(p, self)?;
+                let mut channels = self.channels.clone();
+
+                match buffer_size {
+                    BufferSize::Finite(max_size) => {
+                        if channels[*ch_index as usize].len() < *max_size as usize {
+                            channels[*ch_index as usize].push(value);
+                        } else {
+                            return Err(StepError::Stuck);
+                        }
+                    }
+                    BufferSize::Infinite => {
+                        channels[*ch_index as usize].push(value);
+                    }
+                }
+
+                Ok(Either::Left(
+                    [(
+                        self.memory.clone(),
+                        self.tuple_spaces.clone(),
+                        channels,
+                        ptr.bump(),
+                    )]
+                    .into_iter(),
+                ))
+            }
+            Instr::Receive(ch_index, var_index) => {
+                let mut channels = self.channels.clone();
+                let mut memory = self.memory.clone();
+
+                if let Some(v) = channels[*ch_index as usize].first() {
+                    memory[*var_index as usize] = *v;
+                    channels[*ch_index as usize].remove(0);
+
+                    return Ok(Either::Left(
+                        [(memory, self.tuple_spaces.clone(), channels, ptr.bump())].into_iter(),
+                    ));
+                }
+                Err(StepError::Stuck)
             }
         }
     }

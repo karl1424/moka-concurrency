@@ -135,8 +135,10 @@ LTLCommandKind: CommandKind<(), ()> = {
     "skip"                                      => CommandKind::Skip,
     "placeholder"                               => CommandKind::Placeholder,
     "if" <LTLGuards> "fi"                       => CommandKind::If(<>),
-    "do" <LTLGuards> "od" => CommandKind::Loop((), <>),
-    <Operation>                 => CommandKind::O(<>),
+    "do" <LTLGuards> "od"                       => CommandKind::Loop((), <>),
+    <Operation>                                 => CommandKind::O(<>),
+    <Target> "!" <AExpr>                        => CommandKind::Send(<>),
+    <Target> "?" <Target>                       => CommandKind::Receive(<>),
 };
 LTLGuards: Vec<Guard<(), ()>> = SepNonEmpty<LTLGuard, "[]">;
 LTLGuard: Guard<(), ()> = {
