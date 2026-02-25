@@ -49,6 +49,7 @@ pub enum CommandKind<Pred, Inv> {
     Placeholder,
     If(Vec<Guard<Pred, Inv>>),
     Loop(Inv, Vec<Guard<Pred, Inv>>),
+    LoopCG(Inv, Vec<Guard<Pred, Inv>>),
     O(Operation),
     Send(Target<Box<AExpr>>, AExpr),
     Receive(Target<Box<AExpr>>, Target<Box<AExpr>>),

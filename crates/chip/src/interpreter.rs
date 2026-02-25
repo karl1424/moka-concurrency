@@ -232,6 +232,22 @@ impl Program {
                     },
                 );
             }
+            CommandKind::LoopCG(_, guards) => {
+                let head = self.push(Instr::Nop, Some(cmd.span));
+                let mut choices = Vec::new();
+                for guard in guards {
+                    choices.push((guard.guard.clone(), self.current()));
+                    self.compile_commands(&guard.cmds);
+                    self.push(Instr::Goto(head), Some(cmd.span));
+                }
+                self.set(
+                    head,
+                    Instr::Branch {
+                        choices,
+                        otherwise: None,
+                    },
+                );
+            }
             CommandKind::O(Operation::Put(target, args)) => {
                 let index = self.tuple_space_index(target.name()).unwrap();
                 let tuple_max_size = self.tuple_spaces[index as usize].size.clone();

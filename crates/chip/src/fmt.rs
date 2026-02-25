@@ -59,6 +59,9 @@ impl<Prev: Display, Inv: Display> Display for CommandKind<Prev, Inv> {
             CommandKind::Loop(inv, guards) => {
                 write!(f, "do[{inv}] {}\nod", guards.iter().format("\n[] "))
             }
+            CommandKind::LoopCG(inv, guards) => {
+                write!(f, "loop[{inv}] {}\npool", guards.iter().format("\n[] "))
+            }
             CommandKind::O(op) => write!(f, "{op}"),
             CommandKind::Send(ch, expr) => write!(f, "{ch}!{expr}"),
             CommandKind::Receive(ch, var) => write!(f, "{ch}?{var}"),
@@ -76,6 +79,9 @@ impl CommandKind<(), ()> {
             }
             CommandKind::Loop((), guards) => {
                 format!("do {}\nod", guards.iter().map(|g| g.fmt()).format("\n[] "))
+            }
+            CommandKind::LoopCG((), guards) => {
+                format!("loop {}\npool", guards.iter().map(|g| g.fmt()).format("\n[] "))
             }
             CommandKind::O(op) => format!("{op}"),
             CommandKind::Send(ch, expr) => format!("{ch}!{expr}"),

@@ -136,6 +136,7 @@ LTLCommandKind: CommandKind<(), ()> = {
     "placeholder"                               => CommandKind::Placeholder,
     "if" <LTLGuards> "fi"                       => CommandKind::If(<>),
     "do" <LTLGuards> "od"                       => CommandKind::Loop((), <>),
+    "loop" <LTLGuards> "pool"                   => CommandKind::LoopCG((), <>),
     <Operation>                                 => CommandKind::O(<>),
     <Target> "!" <AExpr>                        => CommandKind::Send(<>),
     <Target> "?" <Target>                       => CommandKind::Receive(<>),
