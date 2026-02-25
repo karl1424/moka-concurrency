@@ -61,14 +61,21 @@ impl ReachableStates {
                 })
                 .chain(ltl_program.initial.keys().cloned()),
             ltl_program.tuple_spaces.clone(),
+            ltl_program.channels.clone(),
         );
         let state = program.initial_state(
-            |var    | ltl_program.initial.get(var).copied().unwrap_or_default(),
+            |var| ltl_program.initial.get(var).copied().unwrap_or_default(),
             ltl_program
                 .tuple_spaces
                 .clone()
                 .into_iter()
                 .map(|(_, ts)| ts.space.clone())
+                .collect(),
+            ltl_program
+                .channels
+                .clone()
+                .into_iter()
+                .map(|(_, ch)| ch.channel.clone())
                 .collect(),
         );
         let mut states = Vec::new();
@@ -132,7 +139,9 @@ impl ReachableStates {
                     .collect::<<Literal as AtomicProperty>::Set>();
 
                 for (idx, op) in operation_properties.iter().enumerate() {
-                    let holds = BExpr::OP(op.clone()).evaluate(&self.program, state).is_ok_and(|x| x);
+                    let holds = BExpr::OP(op.clone())
+                        .evaluate(&self.program, state)
+                        .is_ok_and(|x| x);
                     if holds {
                         assignment.insert(Literal::from(format!("o{idx}")));
                     }

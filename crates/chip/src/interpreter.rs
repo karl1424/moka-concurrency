@@ -6,8 +6,8 @@ use mcltl::ltl::expression::Literal;
 
 use crate::{
     ast::{
-        AExpr, AOp, BExpr, Command, CommandKind, Commands, Field, Function, Int, LTLFormula,
-        Locator, LogicOp, Operation, RelOp, Target, TupleSpace, BufferSize, TupleSpaceType,
+        AExpr, AOp, BExpr, BufferSize, Channel, Command, CommandKind, Commands, Field, Function,
+        Int, LTLFormula, Locator, LogicOp, Operation, RelOp, Target, TupleSpace, TupleSpaceType,
         Variable,
     },
     ast_ext::FreeVariables,
@@ -41,6 +41,7 @@ enum Instr {
 pub struct Program {
     variables: Vec<Variable>,
     tuple_spaces: Vec<TupleSpaceMeta>,
+    channels: Vec<ChannelMeta>,
     instrs: Vec<Instr>,
     entry_points: Vec<InstrPtr>,
     source_map: Vec<Option<SourceSpan>>,
@@ -50,6 +51,12 @@ pub struct Program {
 pub struct TupleSpaceMeta {
     pub name: Variable,
     pub space_type: TupleSpaceType,
+    pub size: BufferSize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChannelMeta {
+    pub name: Variable,
     pub size: BufferSize,
 }
 
@@ -66,6 +73,7 @@ impl Program {
         cmdss: &[Commands<(), ()>],
         additional_vars: impl IntoIterator<Item = Variable>,
         tuple_spaces: IndexMap<Variable, TupleSpace>,
+        channels: IndexMap<Variable, Channel>,
     ) -> Program {
         let mut p = Program {
             variables: cmdss
@@ -91,6 +99,13 @@ impl Program {
                     size: ts.size,
                 })
                 .collect(),
+            channels: channels
+                .into_iter()
+                .map(|(var, ch)| ChannelMeta {
+                    name: var,
+                    size: ch.size,
+                })
+                .collect(),
         };
 
         for cmds in cmdss {
@@ -110,11 +125,13 @@ impl Program {
         &self,
         memory: impl Fn(&Variable) -> i32,
         tuple_space_memory: Vec<Vec<Vec<Int>>>,
+        channel_memory: Vec<Vec<Int>>,
     ) -> State {
         State {
             ptrs: self.entry_points.clone(),
             memory: self.variables.iter().map(memory).collect(),
             tuple_spaces: tuple_space_memory,
+            channels: channel_memory,
         }
     }
 
@@ -238,6 +255,7 @@ pub struct State {
     ptrs: Vec<InstrPtr>,
     memory: Memory,
     tuple_spaces: Vec<Vec<Vec<Int>>>,
+    channels: Vec<Vec<Int>>,
 }
 
 #[derive(Debug)]
@@ -295,13 +313,14 @@ impl State {
     ) -> Result<impl Iterator<Item = State> + 'a, StepError> {
         Ok(self
             .step_at(p, self.ptrs[execution])?
-            .map(move |(mem, tuple_spaces, ptr)| {
+            .map(move |(mem, tuple_spaces, channels, ptr)| {
                 let mut ptrs = self.ptrs.clone();
                 ptrs[execution] = ptr;
                 State {
                     ptrs,
                     memory: mem,
                     tuple_spaces,
+                    channels,
                 }
             }))
     }
@@ -377,8 +396,8 @@ impl State {
         remove: bool,
     ) -> Result<
         Either<
-            std::array::IntoIter<(Memory, Vec<Vec<Vec<Int>>>, InstrPtr), 1>,
-            std::vec::IntoIter<(Memory, Vec<Vec<Vec<Int>>>, InstrPtr)>,
+            std::array::IntoIter<(Memory, Vec<Vec<Vec<Int>>>, Vec<Vec<Int>>, InstrPtr), 1>,
+            std::vec::IntoIter<(Memory, Vec<Vec<Vec<Int>>>, Vec<Vec<Int>>, InstrPtr)>,
         >,
         StepError,
     > {
@@ -401,7 +420,7 @@ impl State {
                             remove,
                         );
 
-                        results.push((mem_copy, ts_copy, ptr.bump()));
+                        results.push((mem_copy, ts_copy, self.channels.clone(), ptr.bump()));
                     }
                 }
 
@@ -431,7 +450,9 @@ impl State {
                         p,
                         remove,
                     );
-                    Ok(Either::Left([(new_mem, new_ts, ptr.bump())].into_iter()))
+                    Ok(Either::Left(
+                        [(new_mem, new_ts, self.channels.clone(), ptr.bump())].into_iter(),
+                    ))
                 } else {
                     return Err(StepError::Stuck);
                 }
@@ -456,7 +477,9 @@ impl State {
                         p,
                         remove,
                     );
-                    Ok(Either::Left([(new_mem, new_ts, ptr.bump())].into_iter()))
+                    Ok(Either::Left(
+                        [(new_mem, new_ts, self.channels.clone(), ptr.bump())].into_iter(),
+                    ))
                 } else {
                     return Err(StepError::Stuck);
                 }
@@ -473,7 +496,9 @@ impl State {
                             p,
                             remove,
                         );
-                        return Ok(Either::Left([(new_mem, new_ts, ptr.bump())].into_iter()));
+                        return Ok(Either::Left(
+                            [(new_mem, new_ts, self.channels.clone(), ptr.bump())].into_iter(),
+                        ));
                     }
                 }
                 Err(StepError::Stuck)
@@ -491,7 +516,9 @@ impl State {
                             p,
                             remove,
                         );
-                        return Ok(Either::Left([(new_mem, new_ts, ptr.bump())].into_iter()));
+                        return Ok(Either::Left(
+                            [(new_mem, new_ts, self.channels.clone(), ptr.bump())].into_iter(),
+                        ));
                     }
                 }
                 Err(StepError::Stuck)
@@ -505,14 +532,14 @@ impl State {
                 let ts_index = p.tuple_space_index(t.name()).unwrap();
                 let ts_type = p.tuple_spaces[ts_index as usize].space_type.clone();
                 self.match_tuple_space_type(&ts_type, &ts_index, f, p, &InstrPtr(0), true)
-                    .map(|either| either.into_iter().map(|(m, ts, _)| (m, ts)).collect())
+                    .map(|either| either.into_iter().map(|(m, ts, _, _)| (m, ts)).collect())
                     .unwrap_or_default()
             }
             BExpr::OP(Operation::Query(t, f)) => {
                 let ts_index = p.tuple_space_index(t.name()).unwrap();
                 let ts_type = p.tuple_spaces[ts_index as usize].space_type.clone();
                 self.match_tuple_space_type(&ts_type, &ts_index, f, p, &InstrPtr(0), false)
-                    .map(|either| either.into_iter().map(|(m, ts, _)| (m, ts)).collect())
+                    .map(|either| either.into_iter().map(|(m, ts, _, _)| (m, ts)).collect())
                     .unwrap_or_default()
             }
             BExpr::OP(Operation::Put(t, args)) => {
@@ -539,6 +566,7 @@ impl State {
                         ptrs: self.ptrs.clone(),
                         memory: m,
                         tuple_spaces: ts,
+                        channels: self.channels.clone(),
                     }
                     .eval_guard(p, r)
                 })
@@ -556,6 +584,7 @@ impl State {
                                 ptrs: self.ptrs.clone(),
                                 memory: m.clone(),
                                 tuple_spaces: ts.clone(),
+                                channels: self.channels.clone(),
                             }
                             .eval_guard(p, r)
                         })
@@ -582,30 +611,51 @@ impl State {
         &self,
         p: &Program,
         ptr: InstrPtr,
-    ) -> Result<impl Iterator<Item = (Memory, Vec<Vec<Vec<Int>>>, InstrPtr)>, StepError> {
+    ) -> Result<
+        impl Iterator<Item = (Memory, Vec<Vec<Vec<Int>>>, Vec<Vec<Int>>, InstrPtr)>,
+        StepError,
+    > {
         match &p[ptr] {
             Instr::Nop => Ok(Either::Left(
-                [(self.memory.clone(), self.tuple_spaces.clone(), ptr.bump())].into_iter(),
+                [(
+                    self.memory.clone(),
+                    self.tuple_spaces.clone(),
+                    self.channels.clone(),
+                    ptr.bump(),
+                )]
+                .into_iter(),
             )),
             Instr::Assign(v, e) => {
                 let value = e.evaluate(p, self)?;
                 let mut memory = self.memory.clone();
                 memory[*v as usize] = value;
                 Ok(Either::Left(
-                    [(memory, self.tuple_spaces.clone(), ptr.bump())].into_iter(),
+                    [(
+                        memory,
+                        self.tuple_spaces.clone(),
+                        self.channels.clone(),
+                        ptr.bump(),
+                    )]
+                    .into_iter(),
                 ))
             }
             Instr::Branch { choices, otherwise } => {
                 let mut valid = Vec::new();
                 for (b, target) in choices {
                     for (mem, ts) in self.eval_guard(p, b) {
-                        valid.push((mem, ts, *target));
+                        valid.push((mem, ts, self.channels.clone(), *target));
                     }
                 }
                 if valid.is_empty() {
                     if let Some(target) = otherwise {
                         Ok(Either::Left(
-                            [(self.memory.clone(), self.tuple_spaces.clone(), *target)].into_iter(),
+                            [(
+                                self.memory.clone(),
+                                self.tuple_spaces.clone(),
+                                self.channels.clone(),
+                                *target,
+                            )]
+                            .into_iter(),
                         ))
                     } else {
                         Err(StepError::Stuck)
@@ -615,7 +665,13 @@ impl State {
                 }
             }
             Instr::Goto(target) => Ok(Either::Left(
-                [(self.memory.clone(), self.tuple_spaces.clone(), *target)].into_iter(),
+                [(
+                    self.memory.clone(),
+                    self.tuple_spaces.clone(),
+                    self.channels.clone(),
+                    *target,
+                )]
+                .into_iter(),
             )),
             Instr::Halt => Err(StepError::Halt),
             Instr::Put(ts_max_size, ts_index, args) => {
@@ -640,7 +696,13 @@ impl State {
                 }
 
                 Ok(Either::Left(
-                    [(self.memory.clone(), tuple_spaces, ptr.bump())].into_iter(),
+                    [(
+                        self.memory.clone(),
+                        tuple_spaces,
+                        self.channels.clone(),
+                        ptr.bump(),
+                    )]
+                    .into_iter(),
                 ))
             }
             Instr::Get(ts_type, ts_index, fields) => {
@@ -698,6 +760,18 @@ impl fmt::Display for StateFormat<'_> {
                 .collect::<Vec<_>>()
                 .join(", ");
             parts.push(format!("{} = {{{}}}", ts_meta.name, tuples_str))
+        }
+
+        for (ch_meta, ch_values) in self.program.channels.iter().zip(&self.state.channels) {
+            parts.push(format!(
+                "{} = {{{}}}",
+                ch_meta.name,
+                ch_values
+                    .iter()
+                    .map(|v| v.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ))
         }
 
         write!(f, "{}", parts.join(", "))
@@ -836,10 +910,7 @@ impl LTLFormula {
                 LTLExpression::Literal(format!("p{idx}").into())
             }
             LTLFormula::Operation(op) => {
-                let idx = if let Some(idx) = operations
-                    .iter()
-                    .position(|x| x == op.as_ref())
-                {
+                let idx = if let Some(idx) = operations.iter().position(|x| x == op.as_ref()) {
                     idx
                 } else {
                     operations.push(op.as_ref().clone());
@@ -850,7 +921,9 @@ impl LTLFormula {
             LTLFormula::Not(e) => !e.to_mcltl(rels, operations),
             LTLFormula::And(p, q) => p.to_mcltl(rels, operations) & q.to_mcltl(rels, operations),
             LTLFormula::Or(p, q) => p.to_mcltl(rels, operations) | q.to_mcltl(rels, operations),
-            LTLFormula::Implies(p, q) => !p.to_mcltl(rels, operations) | q.to_mcltl(rels, operations),
+            LTLFormula::Implies(p, q) => {
+                !p.to_mcltl(rels, operations) | q.to_mcltl(rels, operations)
+            }
             LTLFormula::Until(p, q) => p.to_mcltl(rels, operations).U(q.to_mcltl(rels, operations)),
             LTLFormula::Next(p) => LTLExpression::X(Box::new(p.to_mcltl(rels, operations))),
             LTLFormula::Globally(p) => LTLExpression::G(Box::new(p.to_mcltl(rels, operations))),
