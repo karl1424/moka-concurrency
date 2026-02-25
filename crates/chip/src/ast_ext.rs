@@ -4,8 +4,9 @@ use indexmap::IndexSet;
 use itertools::Either;
 
 use crate::ast::{
-    AExpr, AOp, Array, BExpr, Command, CommandKind, Commands, Field, Function, Guard, LTLFormula,
-    LogicOp, Operation, PredicateBlock, PredicateChain, Target, TargetDef, TargetKind, Variable,
+    AExpr, AOp, Array, BExpr, CG, Command, CommandKind, Commands, CommunicationGuard, Field,
+    Function, Guard, LTLFormula, LogicOp, Operation, PredicateBlock, PredicateChain, Target,
+    TargetDef, TargetKind, Variable,
 };
 
 impl Target<()> {
@@ -222,7 +223,9 @@ impl<Pred: FreeVariables, Inv: FreeVariables> FreeVariables for CommandKind<Pred
             CommandKind::Skip | CommandKind::Placeholder => IndexSet::default(),
             CommandKind::If(c) => c.as_slice().funs(),
             CommandKind::Loop(inv, c) => inv.funs().union(&c.as_slice().funs()).cloned().collect(),
-            CommandKind::LoopCG(inv, c) => inv.funs().union(&c.as_slice().funs()).cloned().collect(),
+            CommandKind::LoopCG(inv, c) => {
+                inv.funs().union(&c.as_slice().funs()).cloned().collect()
+            }
             CommandKind::O(op) => op.funs(),
             CommandKind::Send(_, a) => a.funs(),
             CommandKind::Receive(_, x) => x.funs(),
@@ -239,6 +242,22 @@ impl<Pred: FreeVariables, Inv: FreeVariables> FreeVariables for Guard<Pred, Inv>
             .union(&self.cmds.funs())
             .cloned()
             .collect()
+    }
+}
+impl<Pred: FreeVariables, Inv: FreeVariables> FreeVariables for CommunicationGuard<Pred, Inv> {
+    fn fv(&self) -> IndexSet<Target> {
+        match &self.guard {
+            CG::BoolExpression(b) => b.fv().union(&self.cmds.fv()).cloned().collect(),
+            CG::Send(_, a) => a.fv().union(&self.cmds.fv()).cloned().collect(),
+            CG::Receive(_, var) => var.fv().union(&self.cmds.fv()).cloned().collect(),
+        }
+    }
+    fn funs(&self) -> IndexSet<Function> {
+        match &self.guard {
+            CG::BoolExpression(b) => b.funs().union(&self.cmds.funs()).cloned().collect(),
+            CG::Send(_, a) => a.funs().union(&self.cmds.funs()).cloned().collect(),
+            CG::Receive(_, var) => var.funs().union(&self.cmds.funs()).cloned().collect(),
+        }
     }
 }
 impl FreeVariables for PredicateChain {

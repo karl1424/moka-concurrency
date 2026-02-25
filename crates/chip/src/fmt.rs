@@ -3,9 +3,7 @@ use std::fmt::Display;
 use itertools::Itertools;
 
 use crate::ast::{
-    AExpr, AOp, Array, BExpr, Command, CommandKind, Commands, Field, Function, Guard, LTLFormula,
-    LTLProgram, Locator, LogicOp, Operation, PredicateBlock, PredicateChain, Quantifier, RelOp,
-    Target, Variable,
+    AExpr, AOp, Array, BExpr, CG, Command, CommandKind, Commands, CommunicationGuard, Field, Function, Guard, LTLFormula, LTLProgram, Locator, LogicOp, Operation, PredicateBlock, PredicateChain, Quantifier, RelOp, Target, Variable
 };
 
 impl Display for Variable {
@@ -120,6 +118,43 @@ impl Guard<(), ()> {
         format!(
             "{} ->\n{}",
             self.guard,
+            self.cmds
+                .fmt()
+                .lines()
+                .map(|l| format!("   {l}"))
+                .format("\n")
+        )
+    }
+}
+
+impl<Prev: Display, Inv: Display> Display for CommunicationGuard<Prev, Inv> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{} ->\n{}",
+            match &self.guard {
+                CG::BoolExpression(b) => b.to_string(),
+                CG::Send(ch,a) => ch.to_string() + "!" + &a.to_string(),
+                CG::Receive(t, var) => t.to_string() + "?" + &var.to_string(),
+            },
+            self.cmds
+                .to_string()
+                .lines()
+                .map(|l| format!("   {l}"))
+                .format("\n")
+        )
+    }
+}
+
+impl CommunicationGuard<(), ()> {
+    fn fmt(&self) -> String {
+        format!(
+            "{} ->\n{}",
+            match &self.guard {
+                CG::BoolExpression(b) => b.to_string(),
+                CG::Send(ch,a) => ch.to_string() + "!" + &a.to_string(),
+                CG::Receive(t, var) => t.to_string() + "?" + &var.to_string(),
+            },
             self.cmds
                 .fmt()
                 .lines()

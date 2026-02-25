@@ -49,7 +49,7 @@ pub enum CommandKind<Pred, Inv> {
     Placeholder,
     If(Vec<Guard<Pred, Inv>>),
     Loop(Inv, Vec<Guard<Pred, Inv>>),
-    LoopCG(Inv, Vec<Guard<Pred, Inv>>),
+    LoopCG(Inv, Vec<CommunicationGuard<Pred, Inv>>),
     O(Operation),
     Send(Target<Box<AExpr>>, AExpr),
     Receive(Target<Box<AExpr>>, Target<Box<AExpr>>),
@@ -74,6 +74,20 @@ pub struct Guard<Pred, Inv> {
     pub guard_span: SourceSpan,
     pub guard: BExpr,
     pub cmds: Commands<Pred, Inv>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct CommunicationGuard<Pred, Inv> {
+    pub guard_span: SourceSpan,
+    pub guard: CG,
+    pub cmds: Commands<Pred, Inv>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum CG {
+    BoolExpression(BExpr),
+    Send(Target<Box<AExpr>>, AExpr),
+    Receive(Target<Box<AExpr>>, Target<Box<AExpr>>),
 }
 
 pub type Int = i32;

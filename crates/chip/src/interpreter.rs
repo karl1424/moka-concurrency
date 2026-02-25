@@ -6,9 +6,9 @@ use mcltl::ltl::expression::Literal;
 
 use crate::{
     ast::{
-        AExpr, AOp, BExpr, BufferSize, Channel, Command, CommandKind, Commands, Field, Function,
-        Int, LTLFormula, Locator, LogicOp, Operation, RelOp, Target, TupleSpace, TupleSpaceType,
-        Variable,
+        AExpr, AOp, BExpr, BufferSize, CG, Channel, Command, CommandKind, Commands, Field,
+        Function, Int, LTLFormula, Locator, LogicOp, Operation, RelOp, Target, TupleSpace,
+        TupleSpaceType, Variable,
     },
     ast_ext::FreeVariables,
     parse::SourceSpan,
@@ -27,7 +27,7 @@ enum Instr {
     Nop,
     Assign(u32, AExpr),
     Branch {
-        choices: Vec<(BExpr, InstrPtr)>,
+        choices: Vec<(CG, InstrPtr)>,
         otherwise: Option<InstrPtr>,
     },
     Goto(InstrPtr),
@@ -200,7 +200,7 @@ impl Program {
                 let mut choices = Vec::new();
                 let mut exits = Vec::new();
                 for guard in guards {
-                    choices.push((guard.guard.clone(), self.current()));
+                    choices.push((CG::BoolExpression(guard.guard.clone()), self.current()));
                     self.compile_commands(&guard.cmds);
                     exits.push(self.current());
                     self.push(Instr::Nop, Some(cmd.span));
@@ -220,7 +220,7 @@ impl Program {
                 let head = self.push(Instr::Nop, Some(cmd.span));
                 let mut choices = Vec::new();
                 for guard in guards {
-                    choices.push((guard.guard.clone(), self.current()));
+                    choices.push((CG::BoolExpression(guard.guard.clone()), self.current()));
                     self.compile_commands(&guard.cmds);
                     self.push(Instr::Goto(head), Some(cmd.span));
                 }
@@ -561,20 +561,20 @@ impl State {
         }
     }
 
-    fn eval_guard(&self, p: &Program, expr: &BExpr) -> Vec<(Memory, Vec<Vec<Vec<Int>>>)> {
+    fn eval_bool_guard(&self, p: &Program, expr: &BExpr) -> Vec<(Memory, Vec<Vec<Vec<Int>>>, Vec<Vec<Int>>)> {
         match expr {
             BExpr::OP(Operation::Get(t, f)) => {
                 let ts_index = p.tuple_space_index(t.name()).unwrap();
                 let ts_type = p.tuple_spaces[ts_index as usize].space_type.clone();
                 self.match_tuple_space_type(&ts_type, &ts_index, f, p, &InstrPtr(0), true)
-                    .map(|either| either.into_iter().map(|(m, ts, _, _)| (m, ts)).collect())
+                    .map(|either| either.into_iter().map(|(m, ts, _, _)| (m, ts, self.channels.clone())).collect())
                     .unwrap_or_default()
             }
             BExpr::OP(Operation::Query(t, f)) => {
                 let ts_index = p.tuple_space_index(t.name()).unwrap();
                 let ts_type = p.tuple_spaces[ts_index as usize].space_type.clone();
                 self.match_tuple_space_type(&ts_type, &ts_index, f, p, &InstrPtr(0), false)
-                    .map(|either| either.into_iter().map(|(m, ts, _, _)| (m, ts)).collect())
+                    .map(|either| either.into_iter().map(|(m, ts, _, _)| (m, ts, self.channels.clone())).collect())
                     .unwrap_or_default()
             }
             BExpr::OP(Operation::Put(t, args)) => {
@@ -591,37 +591,37 @@ impl State {
                     .map(|e| e.evaluate(p, self).unwrap_or(0))
                     .collect();
                 ts[ts_index as usize].push(values);
-                vec![(self.memory.clone(), ts)]
+                vec![(self.memory.clone(), ts, self.channels.clone())]
             }
             BExpr::Logic(l, LogicOp::And | LogicOp::Land, r) => self
-                .eval_guard(p, l)
+                .eval_bool_guard(p, l)
                 .into_iter()
-                .flat_map(|(m, ts)| {
+                .flat_map(|(m, ts,_)| {
                     State {
                         ptrs: self.ptrs.clone(),
                         memory: m,
                         tuple_spaces: ts,
                         channels: self.channels.clone(),
                     }
-                    .eval_guard(p, r)
+                    .eval_bool_guard(p, r)
                 })
                 .collect(),
             BExpr::Logic(l, LogicOp::Or | LogicOp::Lor, r) => {
-                let left_res = self.eval_guard(p, l);
+                let left_res = self.eval_bool_guard(p, l);
 
                 if left_res.is_empty() {
-                    self.eval_guard(p, r)
+                    self.eval_bool_guard(p, r)
                 } else {
                     let chained: Vec<_> = left_res
                         .iter()
-                        .flat_map(|(m, ts)| {
+                        .flat_map(|(m, ts,_)| {
                             State {
                                 ptrs: self.ptrs.clone(),
                                 memory: m.clone(),
                                 tuple_spaces: ts.clone(),
                                 channels: self.channels.clone(),
                             }
-                            .eval_guard(p, r)
+                            .eval_bool_guard(p, r)
                         })
                         .collect();
 
@@ -634,10 +634,53 @@ impl State {
             }
             _ => {
                 if expr.evaluate(p, self).unwrap_or(false) {
-                    vec![(self.memory.clone(), self.tuple_spaces.clone())]
+                    vec![(self.memory.clone(), self.tuple_spaces.clone(), self.channels.clone())]
                 } else {
                     vec![]
                 }
+            }
+        }
+    }
+
+    fn eval_guard(&self, p: &Program, cg: &CG) -> Vec<(Memory, Vec<Vec<Vec<Int>>>,Vec<Vec<Int>>)> {
+        match cg {
+            CG::BoolExpression(expr) => self.eval_bool_guard(p, expr),
+            CG::Send(ch, expr) => {
+                if let Ok(value) = expr.evaluate(p, self) {
+                    let mut channels = self.channels.clone();
+                    let ch_index = p.channel_index(ch.name()).unwrap();
+                    let buffer_size = p.channels[ch_index as usize].size.clone();
+
+                    match buffer_size {
+                        BufferSize::Finite(max_size) => {
+                            if channels[ch_index as usize].len() < max_size as usize {
+                                channels[ch_index as usize].push(value);
+                                return vec![(self.memory.clone(), self.tuple_spaces.clone(), channels)];
+                            } else {
+                                return vec![];
+                            }
+                        }
+                        BufferSize::Infinite => {
+                            channels[ch_index as usize].push(value);
+                            return vec![(self.memory.clone(), self.tuple_spaces.clone(), channels)];
+                        }
+                    }
+                };
+                vec![]
+            }
+            CG::Receive(ch, var) => {
+                let mut channels = self.channels.clone();
+                let mut memory = self.memory.clone();
+                let ch_index = p.channel_index(ch.name()).unwrap();
+                let var_index = p.variable_index(var.name()).unwrap();
+
+                if let Some(v) = channels[ch_index as usize].first() {
+                    memory[var_index as usize] = *v;
+                    channels[ch_index as usize].remove(0);
+
+                    return vec![(memory, self.tuple_spaces.clone(), channels)];
+                }
+                vec![]
             }
         }
     }
@@ -676,9 +719,9 @@ impl State {
             }
             Instr::Branch { choices, otherwise } => {
                 let mut valid = Vec::new();
-                for (b, target) in choices {
-                    for (mem, ts) in self.eval_guard(p, b) {
-                        valid.push((mem, ts, self.channels.clone(), *target));
+                for (cg, target) in choices {
+                    for (mem, ts, ch) in self.eval_guard(p, cg) {
+                        valid.push((mem, ts, ch, *target));
                     }
                 }
                 if valid.is_empty() {
@@ -956,7 +999,7 @@ impl BExpr {
             }
             BExpr::Not(e) => !e.evaluate(p, state)?,
             BExpr::Quantified(_, _, _) => todo!(),
-            BExpr::OP(_) => !state.eval_guard(p, self).is_empty(),
+            BExpr::OP(_) => !state.eval_bool_guard(p, self).is_empty(),
         })
     }
 }

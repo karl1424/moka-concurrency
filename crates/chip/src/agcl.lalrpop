@@ -136,7 +136,7 @@ LTLCommandKind: CommandKind<(), ()> = {
     "placeholder"                               => CommandKind::Placeholder,
     "if" <LTLGuards> "fi"                       => CommandKind::If(<>),
     "do" <LTLGuards> "od"                       => CommandKind::Loop((), <>),
-    "loop" <LTLGuards> "pool"                   => CommandKind::LoopCG((), <>),
+    "loop" <LTLCommunicationGuards> "pool"      => CommandKind::LoopCG((), <>),
     <Operation>                                 => CommandKind::O(<>),
     <Target> "!" <AExpr>                        => CommandKind::Send(<>),
     <Target> "?" <Target>                       => CommandKind::Receive(<>),
@@ -145,6 +145,17 @@ LTLGuards: Vec<Guard<(), ()>> = SepNonEmpty<LTLGuard, "[]">;
 LTLGuard: Guard<(), ()> = {
     <l:@L> <guard:MokaBExpr> <r:@R> "->" <cmds:LTLCommands> => Guard { guard, cmds, guard_span: (l, r - l).into() },
 };
+
+LTLCommunicationGuards: Vec<CommunicationGuard<(), ()>> = SepNonEmpty<LTLCommunicationGuard, "[]">;
+LTLCommunicationGuard: CommunicationGuard<(), ()> = {
+    <l:@L> <guard:CG> <r:@R> "->" <cmds:LTLCommands> => CommunicationGuard { guard, cmds, guard_span: (l, r - l).into() },
+};
+
+CG: CG = {
+    <MokaBExpr> => CG::BoolExpression(<>),
+    <Target> "!" <AExpr> => CG::Send(<>),
+    <Target> "?" <Target> => CG::Receive(<>),
+}
 
 Operation: Operation = {
     <Target> ".put" <TuplePut> => Operation::Put(<>),
