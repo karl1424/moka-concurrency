@@ -48,6 +48,7 @@ pub enum CommandKind<Pred, Inv> {
     Skip,
     Placeholder,
     If(Vec<Guard<Pred, Inv>>),
+    IfCG(Vec<CommunicationGuard<Pred, Inv>>),
     Loop(Inv, Vec<Guard<Pred, Inv>>),
     LoopCG(Inv, Vec<CommunicationGuard<Pred, Inv>>),
     O(Operation),

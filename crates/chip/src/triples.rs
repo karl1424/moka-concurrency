@@ -202,7 +202,8 @@ impl AGCLCommand {
             | CommandKind::O(_)
             | CommandKind::Send(_, _)
             | CommandKind::Receive(_, _)
-            | CommandKind::LoopCG(_, _) => true,
+            | CommandKind::LoopCG(_, _)
+            | CommandKind::IfCG(_) => true,
             CommandKind::If(gcs) | CommandKind::Loop(_, gcs) => {
                 gcs.iter().all(|gc| gc.cmds.is_fully_annotated())
             }

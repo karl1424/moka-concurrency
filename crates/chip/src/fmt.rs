@@ -54,6 +54,7 @@ impl<Prev: Display, Inv: Display> Display for CommandKind<Prev, Inv> {
             CommandKind::Skip => write!(f, "skip"),
             CommandKind::Placeholder => write!(f, "placeholder"),
             CommandKind::If(guards) => write!(f, "if {}\nfi", guards.iter().format("\n[] ")),
+            CommandKind::IfCG(guards) => write!(f, "if {}\nfi", guards.iter().format("\n[] ")),
             CommandKind::Loop(inv, guards) => {
                 write!(f, "do[{inv}] {}\nod", guards.iter().format("\n[] "))
             }
@@ -73,6 +74,9 @@ impl CommandKind<(), ()> {
             CommandKind::Skip => "skip".to_string(),
             CommandKind::Placeholder => "placeholder".to_string(),
             CommandKind::If(guards) => {
+                format!("if {}\nfi", guards.iter().map(|g| g.fmt()).format("\n[] "))
+            }
+            CommandKind::IfCG(guards) => {
                 format!("if {}\nfi", guards.iter().map(|g| g.fmt()).format("\n[] "))
             }
             CommandKind::Loop((), guards) => {

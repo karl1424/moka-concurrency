@@ -210,6 +210,7 @@ impl<Pred: FreeVariables, Inv: FreeVariables> FreeVariables for CommandKind<Pred
             CommandKind::Assignment(x, a) => x.fv().union(&a.fv()).cloned().collect(),
             CommandKind::Skip | CommandKind::Placeholder => IndexSet::default(),
             CommandKind::If(c) => c.as_slice().fv(),
+            CommandKind::IfCG(c) => c.as_slice().fv(),
             CommandKind::Loop(inv, c) => inv.fv().union(&c.as_slice().fv()).cloned().collect(),
             CommandKind::LoopCG(inv, c) => inv.fv().union(&c.as_slice().fv()).cloned().collect(),
             CommandKind::O(op) => op.fv(),
@@ -222,6 +223,7 @@ impl<Pred: FreeVariables, Inv: FreeVariables> FreeVariables for CommandKind<Pred
             CommandKind::Assignment(x, a) => x.funs().union(&a.funs()).cloned().collect(),
             CommandKind::Skip | CommandKind::Placeholder => IndexSet::default(),
             CommandKind::If(c) => c.as_slice().funs(),
+            CommandKind::IfCG(c) => c.as_slice().funs(),
             CommandKind::Loop(inv, c) => inv.funs().union(&c.as_slice().funs()).cloned().collect(),
             CommandKind::LoopCG(inv, c) => {
                 inv.funs().union(&c.as_slice().funs()).cloned().collect()

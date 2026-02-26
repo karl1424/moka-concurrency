@@ -216,6 +216,27 @@ impl Program {
                     self.set(exit, Instr::Goto(self.current()));
                 }
             }
+            CommandKind::IfCG(guards) => {
+                let head = self.push(Instr::Nop, Some(cmd.span));
+                let mut choices = Vec::new();
+                let mut exits = Vec::new();
+                for guard in guards {
+                    choices.push((guard.guard.clone(), self.current()));
+                    self.compile_commands(&guard.cmds);
+                    exits.push(self.current());
+                    self.push(Instr::Nop, Some(cmd.span));
+                }
+                self.set(
+                    head,
+                    Instr::Branch {
+                        choices,
+                        otherwise: None,
+                    },
+                );
+                for exit in exits {
+                    self.set(exit, Instr::Goto(self.current()));
+                }
+            }
             CommandKind::Loop(_, guards) => {
                 let head = self.push(Instr::Nop, Some(cmd.span));
                 let mut choices = Vec::new();

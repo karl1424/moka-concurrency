@@ -134,7 +134,7 @@ LTLCommandKind: CommandKind<(), ()> = {
     <Target> ":=" <AExpr>                       => CommandKind::Assignment(<>),
     "skip"                                      => CommandKind::Skip,
     "placeholder"                               => CommandKind::Placeholder,
-    "if" <LTLGuards> "fi"                       => CommandKind::If(<>),
+    "if" <LTLCommunicationGuards> "fi"          => CommandKind::IfCG(<>),
     "do" <LTLGuards> "od"                       => CommandKind::Loop((), <>),
     "loop" <LTLCommunicationGuards> "pool"      => CommandKind::LoopCG((), <>),
     <Operation>                                 => CommandKind::O(<>),
@@ -279,6 +279,73 @@ pub LTLProgram: LTLProgram = {
                         }
                     }
                 }
+                CommandKind::Loop(_, guards) => {
+                    for g in guards {
+                        match &g.guard {
+                            BExpr::OP(op) => {
+                                let target_var = match op {   
+                                    Operation::Put(target, _) => target,
+                                    Operation::Get(target, _) => target,
+                                    Operation::Query(target, _) => target,
+                                };
+                                if let Target::Variable(var) = target_var {
+                                    if !tuple_spaces.contains_key(var) {
+                                        return Err(lalrpop_util::ParseError::User {
+                                            error: crate::parse::CustomError::Undefined {
+                                                name: var.0.clone(),
+                                                from: command.span.offset(),
+                                                to: command.span.offset() + var.0.len(),
+                                            },
+                                        });
+                                    }
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+                CommandKind::IfCG(cgs) | CommandKind::LoopCG(_, cgs) => {
+                    for cg in cgs {
+                        match &cg.guard {
+                            CG::BoolExpression(expr) => {
+                                match expr {
+                                    BExpr::OP(op) => {
+                                        let target_var = match op {   
+                                            Operation::Put(target, _) => target,
+                                            Operation::Get(target, _) => target,
+                                            Operation::Query(target, _) => target,
+                                        };
+                                        if let Target::Variable(var) = target_var {
+                                            if !tuple_spaces.contains_key(var) {
+                                                return Err(lalrpop_util::ParseError::User {
+                                                    error: crate::parse::CustomError::Undefined {
+                                                        name: var.0.clone(),
+                                                        from: command.span.offset(),
+                                                        to: command.span.offset() + var.0.len(),
+                                                    },
+                                                });
+                                            }
+                                        }
+                                    }
+                                    _ => {}
+                                }
+                            }
+                            CG::Send(target, _) | CG::Receive(target, _) => {
+                                if let Target::Variable(var) = target {
+                                    if !channels.contains_key(var) {
+                                        return Err(lalrpop_util::ParseError::User {
+                                            error: crate::parse::CustomError::Undefined {
+                                                name: var.0.clone(),
+                                                from: command.span.offset(),
+                                                to: command.span.offset() + var.0.len(),
+                                            },
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
                 _ => {},
             }
             
@@ -331,6 +398,73 @@ pub LTLProgram: LTLProgram = {
                                         to: command.span.offset() + var.0.len(),
                                     },
                                 });
+                            }
+                        }
+                    }
+                    CommandKind::Loop(_, guards) => {
+                        for g in guards {
+                            match &g.guard {
+                                BExpr::OP(op) => {
+                                    let target_var = match op {   
+                                        Operation::Put(target, _) => target,
+                                        Operation::Get(target, _) => target,
+                                        Operation::Query(target, _) => target,
+                                    };
+                                    if let Target::Variable(var) = target_var {
+                                        if !tuple_spaces.contains_key(var) {
+                                            return Err(lalrpop_util::ParseError::User {
+                                                error: crate::parse::CustomError::Undefined {
+                                                    name: var.0.clone(),
+                                                    from: command.span.offset(),
+                                                    to: command.span.offset() + var.0.len(),
+                                                },
+                                            });
+                                        }
+                                    }
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
+                    CommandKind::IfCG(cgs) | CommandKind::LoopCG(_, cgs) => {
+                        for cg in cgs {
+                            match &cg.guard {
+                                CG::BoolExpression(expr) => {
+                                    match expr {
+                                        BExpr::OP(op) => {
+                                            let target_var = match op {   
+                                                Operation::Put(target, _) => target,
+                                                Operation::Get(target, _) => target,
+                                                Operation::Query(target, _) => target,
+                                            };
+                                            if let Target::Variable(var) = target_var {
+                                                if !tuple_spaces.contains_key(var) {
+                                                    return Err(lalrpop_util::ParseError::User {
+                                                        error: crate::parse::CustomError::Undefined {
+                                                            name: var.0.clone(),
+                                                            from: command.span.offset(),
+                                                            to: command.span.offset() + var.0.len(),
+                                                        },
+                                                    });
+                                                }
+                                            }
+                                        }
+                                        _ => {}
+                                    }
+                                }
+                                CG::Send(target, _) | CG::Receive(target, _) => {
+                                    if let Target::Variable(var) = target {
+                                        if !channels.contains_key(var) {
+                                            return Err(lalrpop_util::ParseError::User {
+                                                error: crate::parse::CustomError::Undefined {
+                                                    name: var.0.clone(),
+                                                    from: command.span.offset(),
+                                                    to: command.span.offset() + var.0.len(),
+                                                },
+                                            });
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
