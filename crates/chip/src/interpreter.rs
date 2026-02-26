@@ -883,7 +883,7 @@ impl fmt::Display for StateFormat<'_> {
 
         for (ch_meta, ch_values) in self.program.channels.iter().zip(&self.state.channels) {
             parts.push(format!(
-                "{} = {{{}}}",
+                "{} = ({})",
                 ch_meta.name,
                 ch_values
                     .iter()

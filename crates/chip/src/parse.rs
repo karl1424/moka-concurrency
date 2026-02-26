@@ -137,12 +137,12 @@ pub enum ParseError {
         size: i32,
         actual: i32,
     },
-    #[error("Tuple space '{name}' is not defined")]
-    #[diagnostic(help("The tuple space '{name}' must be initialized"))]
-    UndefinedTupleSpace {
+    #[error("Tuple space or channel '{name}' is not defined")]
+    #[diagnostic(help("The tuple space or channel '{name}' must be initialized"))]
+    Undefined {
         #[source_code]
         src: String,
-        #[label = "This tuple space is not defined"]
+        #[label = "Tuple space or channel not defined"]
         err_span: SourceSpan,
         name: String,
     },
@@ -159,7 +159,7 @@ pub enum CustomError {
         from: usize,
         to: usize,
     },
-    UndefinedTupleSpace {
+    Undefined {
         name: String,
         from: usize,
         to: usize,
@@ -211,8 +211,8 @@ impl ParseError {
                     size,
                     actual,
                 },
-                CustomError::UndefinedTupleSpace { name, from, to } => {
-                    ParseError::UndefinedTupleSpace {
+                CustomError::Undefined { name, from, to } => {
+                    ParseError::Undefined {
                         src: prep_src(),
                         err_span: (from, to).into(),
                         name,

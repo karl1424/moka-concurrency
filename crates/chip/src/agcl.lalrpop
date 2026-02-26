@@ -247,25 +247,41 @@ pub LTLProgram: LTLProgram = {
         let (initial, tuple_spaces, channels) = assignments;
 
         for command in &commands.0 {
-            if let CommandKind::O(operation) = &command.kind {
-                let target_var = match operation {
-                    Operation::Put(target, _) => Some(target),
-                    Operation::Get(target, _) => Some(target),
-                    Operation::Query(target, _) => Some(target),
-                };
-                
-                if let Some(Target::Variable(var)) = target_var {
-                    if !tuple_spaces.contains_key(var) {
-                        return Err(lalrpop_util::ParseError::User {
-                            error: crate::parse::CustomError::UndefinedTupleSpace {
-                                name: var.0.clone(),
-                                from: command.span.offset(),
-                                to: command.span.offset() + var.0.len(),
-                            },    
-                        });
+            match &command.kind {
+                CommandKind::O(operation) => {
+                    let target_var = match operation {   
+                        Operation::Put(target, _) => target,
+                        Operation::Get(target, _) => target,
+                        Operation::Query(target, _) => target,
+                    };
+                    if let Target::Variable(var) = target_var {
+                        if !tuple_spaces.contains_key(var) {
+                            return Err(lalrpop_util::ParseError::User {
+                                error: crate::parse::CustomError::Undefined {
+                                    name: var.0.clone(),
+                                    from: command.span.offset(),
+                                    to: command.span.offset() + var.0.len(),
+                                },
+                            });
+                        }
                     }
                 }
+                CommandKind::Send(target, _) | CommandKind::Receive(target, _) => {
+                    if let Target::Variable(var) = target {
+                        if !channels.contains_key(var) {
+                            return Err(lalrpop_util::ParseError::User {
+                                error: crate::parse::CustomError::Undefined {
+                                    name: var.0.clone(),
+                                    from: command.span.offset(),
+                                    to: command.span.offset() + var.0.len(),
+                                },
+                            });
+                        }
+                    }
+                }
+                _ => {},
             }
+            
         }
 
         Ok(LTLProgram {
@@ -286,24 +302,39 @@ pub LTLProgram: LTLProgram = {
 
         for commands in &commands {
             for command in &commands.0 {
-                if let CommandKind::O(operation) = &command.kind {
-                    let target_var = match operation {
-                        Operation::Put(target, _) => Some(target),
-                        Operation::Get(target, _) => Some(target),
-                        Operation::Query(target, _) => Some(target),
-                    };
-
-                    if let Some(Target::Variable(var)) = target_var {
-                        if !tuple_spaces.contains_key(var) {
-                            return Err(lalrpop_util::ParseError::User {
-                                error: crate::parse::CustomError::UndefinedTupleSpace {
-                                    name: var.0.clone(),
-                                    from: command.span.offset(),
-                                    to: command.span.offset() + var.0.len(),
-                                },
-                            });
+                match &command.kind {
+                    CommandKind::O(operation) => {
+                        let target_var = match operation {   
+                            Operation::Put(target, _) => target,
+                            Operation::Get(target, _) => target,
+                            Operation::Query(target, _) => target,
+                        };
+                        if let Target::Variable(var) = target_var {
+                            if !tuple_spaces.contains_key(var) {
+                                return Err(lalrpop_util::ParseError::User {
+                                    error: crate::parse::CustomError::Undefined {
+                                        name: var.0.clone(),
+                                        from: command.span.offset(),
+                                        to: command.span.offset() + var.0.len(),
+                                    },
+                                });
+                            }
                         }
                     }
+                    CommandKind::Send(target, _) | CommandKind::Receive(target, _) => {
+                        if let Target::Variable(var) = target {
+                            if !channels.contains_key(var) {
+                                return Err(lalrpop_util::ParseError::User {
+                                    error: crate::parse::CustomError::Undefined {
+                                        name: var.0.clone(),
+                                        from: command.span.offset(),
+                                        to: command.span.offset() + var.0.len(),
+                                    },
+                                });
+                            }
+                        }
+                    }
+                    _ => {},
                 }
             }
         }
@@ -381,8 +412,8 @@ TupleSpaceValues: Vec<Vec<Int>> = {
 };
 
 ChannelValues: Vec<Int> = {
-    "{" "}" => vec![],
-    "{" <values:SepNonEmpty<Value, ",">> "}" => values,
+    "(" ")" => vec![],
+    "(" <values:SepNonEmpty<Value, ",">> ")" => values,
 };
 
 Tuple: Vec<Int> = {

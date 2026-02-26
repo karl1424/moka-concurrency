@@ -49,7 +49,7 @@ monaco.languages.setMonarchTokensProvider(GCL_LANGUAGE_ID, {
     { token: 'delimiter.angle', open: '<', close: '>' },
   ],
 
-  keywords: ['if', 'fi', 'do', 'od', 'par', 'rap', 'skip', 'check', 'old'],
+  keywords: ['if', 'fi', 'do', 'od', 'par', 'rap', 'skip', 'check', 'old', 'loop', 'pool'],
   constants: ['true', 'false', 'init', 'stuck', 'terminated'],
   operators: [
     '-',
@@ -75,8 +75,9 @@ monaco.languages.setMonarchTokensProvider(GCL_LANGUAGE_ID, {
     '>=',
     '||',
     '|',
+    '?',
   ],
-  ltl: ['X', 'G', 'F', 'U'],
+  ltl: ['X', 'G', 'F', 'U', 'Q', 'S', 'L', 'R', 'INF'],
   tokenizer: {
     root: [
       [
@@ -92,7 +93,7 @@ monaco.languages.setMonarchTokensProvider(GCL_LANGUAGE_ID, {
         },
       ],
       { include: '@whitespace' },
-      [/[-,:=!*\/&+<>|]/, 'keyword.operator'],
+      [/[-,:=!*\/&+<>|?]/, 'keyword.operator'],
       [/(\/\/).*$/, 'comment'],
       [/[{}()\[\]]/, '@brackets'],
       [/[0-9]+/, 'number'],
