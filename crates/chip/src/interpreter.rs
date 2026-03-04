@@ -37,6 +37,14 @@ enum Instr {
     Query(TupleSpaceType, u32, Vec<Field>),
     Send(BufferSize, u32, AExpr),
     Receive(u32, u32),
+    SyncSend {
+        channel: String,
+        expr: AExpr,
+    },
+    SyncReceive {
+        channel: String,
+        var: u32,
+    },
 }
 
 #[derive(Debug)]
@@ -291,14 +299,32 @@ impl Program {
                 );
             }
             CommandKind::Send(ch, e) => {
-                let index = self.channel_index(ch.name()).unwrap();
-                let size = self.channels[index as usize].size.clone();
-                self.push(Instr::Send(size, index, e.clone()), Some(cmd.span));
+                if let Some(index) = self.channel_index(ch.name()) {
+                    let size = self.channels[index as usize].size.clone();
+                    self.push(Instr::Send(size, index, e.clone()), Some(cmd.span));
+                } else {
+                    self.push(
+                        Instr::SyncSend {
+                            channel: ch.name().to_string(),
+                            expr: e.clone(),
+                        },
+                        Some(cmd.span),
+                    );
+                }
             }
             CommandKind::Receive(ch, v) => {
-                let ch_index = self.channel_index(ch.name()).unwrap();
-                let var_index = self.variable_index(v.name()).unwrap();
-                self.push(Instr::Receive(ch_index, var_index), Some(cmd.span));
+                if let Some(ch_index) = self.channel_index(ch.name()) {
+                    let var_index = self.variable_index(v.name()).unwrap();
+                    self.push(Instr::Receive(ch_index, var_index), Some(cmd.span));
+                } else {
+                    self.push(
+                        Instr::SyncReceive {
+                            channel: ch.name().to_string(),
+                            var: self.variable_index(v.name()).unwrap(),
+                        },
+                        Some(cmd.span),
+                    );
+                }
             }
         }
     }
@@ -333,15 +359,46 @@ impl State {
         &'a self,
         p: &'a Program,
     ) -> impl Iterator<Item = Result<State, StepError>> + 'a {
-        self.ptrs
-            .iter()
-            .enumerate()
-            .flat_map(|(i, _)| match self.step_exe(p, i) {
-                Ok(inner) => Either::Left(inner.map(Ok)),
-                Err(err) => Either::Right([Err(err)].into_iter()),
-            })
+        let regular_steps =
+            self.ptrs
+                .iter()
+                .enumerate()
+                .flat_map(|(i, _)| match self.step_exe(p, i) {
+                    Ok(inner) => Either::Left(inner.map(Ok)),
+                    Err(err) => Either::Right([Err(err)].into_iter()),
+                });
+
+        let sync_steps = self.find_sync_pairs(p).into_iter().map(Ok);
+
+        regular_steps
+            .chain(sync_steps)
             .map(|s| Ok(s?.follow_gotos(p)))
     }
+    fn find_sync_pairs(&self, p: &Program) -> Vec<State> {
+        let mut transitions = Vec::new();
+
+        for i in 0..self.ptrs.len() {
+            for j in (i + 1)..self.ptrs.len() {
+                if let (
+                    Instr::SyncSend { channel: c1, expr },
+                    Instr::SyncReceive { channel: c2, var },
+                ) = (&p[self.ptrs[i]], &p[self.ptrs[j]])
+                {
+                    if c1 == c2 {
+                        if let Ok(value) = expr.evaluate(p, self) {
+                            let mut new_state = self.clone();
+                            new_state.memory[*var as usize] = value;
+                            new_state.ptrs[i] = new_state.ptrs[i].bump();
+                            new_state.ptrs[j] = new_state.ptrs[j].bump();
+                            transitions.push(new_state);
+                        }
+                    }
+                }
+            }
+        }
+        transitions
+    }
+
     fn follow_gotos(mut self, p: &Program) -> State {
         for ptr in self.ptrs.iter_mut() {
             loop {
@@ -582,20 +639,34 @@ impl State {
         }
     }
 
-    fn eval_bool_guard(&self, p: &Program, expr: &BExpr) -> Vec<(Memory, Vec<Vec<Vec<Int>>>, Vec<Vec<Int>>)> {
+    fn eval_bool_guard(
+        &self,
+        p: &Program,
+        expr: &BExpr,
+    ) -> Vec<(Memory, Vec<Vec<Vec<Int>>>, Vec<Vec<Int>>)> {
         match expr {
             BExpr::OP(Operation::Get(t, f)) => {
                 let ts_index = p.tuple_space_index(t.name()).unwrap();
                 let ts_type = p.tuple_spaces[ts_index as usize].space_type.clone();
                 self.match_tuple_space_type(&ts_type, &ts_index, f, p, &InstrPtr(0), true)
-                    .map(|either| either.into_iter().map(|(m, ts, _, _)| (m, ts, self.channels.clone())).collect())
+                    .map(|either| {
+                        either
+                            .into_iter()
+                            .map(|(m, ts, _, _)| (m, ts, self.channels.clone()))
+                            .collect()
+                    })
                     .unwrap_or_default()
             }
             BExpr::OP(Operation::Query(t, f)) => {
                 let ts_index = p.tuple_space_index(t.name()).unwrap();
                 let ts_type = p.tuple_spaces[ts_index as usize].space_type.clone();
                 self.match_tuple_space_type(&ts_type, &ts_index, f, p, &InstrPtr(0), false)
-                    .map(|either| either.into_iter().map(|(m, ts, _, _)| (m, ts, self.channels.clone())).collect())
+                    .map(|either| {
+                        either
+                            .into_iter()
+                            .map(|(m, ts, _, _)| (m, ts, self.channels.clone()))
+                            .collect()
+                    })
                     .unwrap_or_default()
             }
             BExpr::OP(Operation::Put(t, args)) => {
@@ -617,7 +688,7 @@ impl State {
             BExpr::Logic(l, LogicOp::And | LogicOp::Land, r) => self
                 .eval_bool_guard(p, l)
                 .into_iter()
-                .flat_map(|(m, ts,_)| {
+                .flat_map(|(m, ts, _)| {
                     State {
                         ptrs: self.ptrs.clone(),
                         memory: m,
@@ -635,7 +706,7 @@ impl State {
                 } else {
                     let chained: Vec<_> = left_res
                         .iter()
-                        .flat_map(|(m, ts,_)| {
+                        .flat_map(|(m, ts, _)| {
                             State {
                                 ptrs: self.ptrs.clone(),
                                 memory: m.clone(),
@@ -655,7 +726,11 @@ impl State {
             }
             _ => {
                 if expr.evaluate(p, self).unwrap_or(false) {
-                    vec![(self.memory.clone(), self.tuple_spaces.clone(), self.channels.clone())]
+                    vec![(
+                        self.memory.clone(),
+                        self.tuple_spaces.clone(),
+                        self.channels.clone(),
+                    )]
                 } else {
                     vec![]
                 }
@@ -663,7 +738,7 @@ impl State {
         }
     }
 
-    fn eval_guard(&self, p: &Program, cg: &CG) -> Vec<(Memory, Vec<Vec<Vec<Int>>>,Vec<Vec<Int>>)> {
+    fn eval_guard(&self, p: &Program, cg: &CG) -> Vec<(Memory, Vec<Vec<Vec<Int>>>, Vec<Vec<Int>>)> {
         match cg {
             CG::BoolExpression(expr) => self.eval_bool_guard(p, expr),
             CG::Send(ch, expr) => {
@@ -676,14 +751,22 @@ impl State {
                         BufferSize::Finite(max_size) => {
                             if channels[ch_index as usize].len() < max_size as usize {
                                 channels[ch_index as usize].push(value);
-                                return vec![(self.memory.clone(), self.tuple_spaces.clone(), channels)];
+                                return vec![(
+                                    self.memory.clone(),
+                                    self.tuple_spaces.clone(),
+                                    channels,
+                                )];
                             } else {
                                 return vec![];
                             }
                         }
                         BufferSize::Infinite => {
                             channels[ch_index as usize].push(value);
-                            return vec![(self.memory.clone(), self.tuple_spaces.clone(), channels)];
+                            return vec![(
+                                self.memory.clone(),
+                                self.tuple_spaces.clone(),
+                                channels,
+                            )];
                         }
                     }
                 };
@@ -851,6 +934,8 @@ impl State {
                 }
                 Err(StepError::Stuck)
             }
+            Instr::SyncSend { .. } => Err(StepError::Stuck),
+            Instr::SyncReceive { .. } => Err(StepError::Stuck),
         }
     }
 

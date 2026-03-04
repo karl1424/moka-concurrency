@@ -250,25 +250,12 @@ pub LTLProgram: LTLProgram = {
             match &command.kind {
                 CommandKind::O(operation) => {
                     let target_var = match operation {   
-                        Operation::Put(target, _) => target,
-                        Operation::Get(target, _) => target,
-                        Operation::Query(target, _) => target,
+                        Operation::Put(target, _) 
+                        | Operation::Get(target, _) 
+                        | Operation::Query(target, _) => target,
                     };
                     if let Target::Variable(var) = target_var {
                         if !tuple_spaces.contains_key(var) {
-                            return Err(lalrpop_util::ParseError::User {
-                                error: crate::parse::CustomError::Undefined {
-                                    name: var.0.clone(),
-                                    from: command.span.offset(),
-                                    to: command.span.offset() + var.0.len(),
-                                },
-                            });
-                        }
-                    }
-                }
-                CommandKind::Send(target, _) | CommandKind::Receive(target, _) => {
-                    if let Target::Variable(var) = target {
-                        if !channels.contains_key(var) {
                             return Err(lalrpop_util::ParseError::User {
                                 error: crate::parse::CustomError::Undefined {
                                     name: var.0.clone(),
@@ -284,9 +271,9 @@ pub LTLProgram: LTLProgram = {
                         match &g.guard {
                             BExpr::OP(op) => {
                                 let target_var = match op {   
-                                    Operation::Put(target, _) => target,
-                                    Operation::Get(target, _) => target,
-                                    Operation::Query(target, _) => target,
+                                    Operation::Put(target, _) 
+                                    | Operation::Get(target, _)
+                                    | Operation::Query(target, _) => target,
                                 };
                                 if let Target::Variable(var) = target_var {
                                     if !tuple_spaces.contains_key(var) {
@@ -311,9 +298,9 @@ pub LTLProgram: LTLProgram = {
                                 match expr {
                                     BExpr::OP(op) => {
                                         let target_var = match op {   
-                                            Operation::Put(target, _) => target,
-                                            Operation::Get(target, _) => target,
-                                            Operation::Query(target, _) => target,
+                                            Operation::Put(target, _) 
+                                            | Operation::Get(target, _) 
+                                            | Operation::Query(target, _) => target,
                                         };
                                         if let Target::Variable(var) = target_var {
                                             if !tuple_spaces.contains_key(var) {
@@ -330,19 +317,7 @@ pub LTLProgram: LTLProgram = {
                                     _ => {}
                                 }
                             }
-                            CG::Send(target, _) | CG::Receive(target, _) => {
-                                if let Target::Variable(var) = target {
-                                    if !channels.contains_key(var) {
-                                        return Err(lalrpop_util::ParseError::User {
-                                            error: crate::parse::CustomError::Undefined {
-                                                name: var.0.clone(),
-                                                from: command.span.offset(),
-                                                to: command.span.offset() + var.0.len(),
-                                            },
-                                        });
-                                    }
-                                }
-                            }
+                            _ => {}
                         }
                     }
                 }
@@ -372,25 +347,12 @@ pub LTLProgram: LTLProgram = {
                 match &command.kind {
                     CommandKind::O(operation) => {
                         let target_var = match operation {   
-                            Operation::Put(target, _) => target,
-                            Operation::Get(target, _) => target,
-                            Operation::Query(target, _) => target,
+                            Operation::Put(target, _) 
+                            | Operation::Get(target, _) 
+                            |Operation::Query(target, _) => target,
                         };
                         if let Target::Variable(var) = target_var {
                             if !tuple_spaces.contains_key(var) {
-                                return Err(lalrpop_util::ParseError::User {
-                                    error: crate::parse::CustomError::Undefined {
-                                        name: var.0.clone(),
-                                        from: command.span.offset(),
-                                        to: command.span.offset() + var.0.len(),
-                                    },
-                                });
-                            }
-                        }
-                    }
-                    CommandKind::Send(target, _) | CommandKind::Receive(target, _) => {
-                        if let Target::Variable(var) = target {
-                            if !channels.contains_key(var) {
                                 return Err(lalrpop_util::ParseError::User {
                                     error: crate::parse::CustomError::Undefined {
                                         name: var.0.clone(),
@@ -406,9 +368,9 @@ pub LTLProgram: LTLProgram = {
                             match &g.guard {
                                 BExpr::OP(op) => {
                                     let target_var = match op {   
-                                        Operation::Put(target, _) => target,
-                                        Operation::Get(target, _) => target,
-                                        Operation::Query(target, _) => target,
+                                        Operation::Put(target, _) 
+                                        | Operation::Get(target, _)
+                                        | Operation::Query(target, _) => target,
                                     };
                                     if let Target::Variable(var) = target_var {
                                         if !tuple_spaces.contains_key(var) {
@@ -433,9 +395,9 @@ pub LTLProgram: LTLProgram = {
                                     match expr {
                                         BExpr::OP(op) => {
                                             let target_var = match op {   
-                                                Operation::Put(target, _) => target,
-                                                Operation::Get(target, _) => target,
-                                                Operation::Query(target, _) => target,
+                                                Operation::Put(target, _) 
+                                                | Operation::Get(target, _) 
+                                                | Operation::Query(target, _) => target,
                                             };
                                             if let Target::Variable(var) = target_var {
                                                 if !tuple_spaces.contains_key(var) {
@@ -452,19 +414,7 @@ pub LTLProgram: LTLProgram = {
                                         _ => {}
                                     }
                                 }
-                                CG::Send(target, _) | CG::Receive(target, _) => {
-                                    if let Target::Variable(var) = target {
-                                        if !channels.contains_key(var) {
-                                            return Err(lalrpop_util::ParseError::User {
-                                                error: crate::parse::CustomError::Undefined {
-                                                    name: var.0.clone(),
-                                                    from: command.span.offset(),
-                                                    to: command.span.offset() + var.0.len(),
-                                                },
-                                            });
-                                        }
-                                    }
-                                }
+                                _ => {}
                             }
                         }
                     }
