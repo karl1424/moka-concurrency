@@ -378,35 +378,52 @@ impl State {
         let mut transitions = Vec::new();
 
         for i in 0..self.ptrs.len() {
-            for j in (i + 1)..self.ptrs.len() {
-                if let (
-                    Instr::SyncSend { channel: c1, expr },
-                    Instr::SyncReceive { channel: c2, var },
-                ) = (&p[self.ptrs[i]], &p[self.ptrs[j]])
-                {
-                    if c1 == c2 {
-                        if let Ok(value) = expr.evaluate(p, self) {
-                            let mut new_state = self.clone();
-                            new_state.memory[*var as usize] = value;
-                            new_state.ptrs[i] = new_state.ptrs[i].bump();
-                            new_state.ptrs[j] = new_state.ptrs[j].bump();
-                            transitions.push(new_state);
+            for j in 0..self.ptrs.len() {
+                if i == j {
+                    continue;
+                }
+                match (&p[self.ptrs[i]], &p[self.ptrs[j]]) {
+                    (
+                        Instr::SyncSend { channel: c1, expr },
+                        Instr::SyncReceive { channel: c2, var },
+                    ) => {
+                        if c1 == c2 {
+                            if let Ok(value) = expr.evaluate(p, self) {
+                                let mut new_state = self.clone();
+                                new_state.memory[*var as usize] = value;
+                                new_state.ptrs[i] = new_state.ptrs[i].bump();
+                                new_state.ptrs[j] = new_state.ptrs[j].bump();
+                                transitions.push(new_state);
+                            }
                         }
                     }
-                } else if let (
-                    Instr::Branch { choices: ci, .. },
-                    Instr::Branch { choices: cj, .. },
-                ) = (&p[self.ptrs[i]], &p[self.ptrs[j]])
-                {
-                    for (cgi, target_i) in ci {
+                    (Instr::Branch { choices: ci, .. }, Instr::Branch { choices: cj, .. }) => {
+                        for (cgi, target_i) in ci {
+                            for (cgj, target_j) in cj {
+                                if let (CG::Send(c1, expr), CG::Receive(c2, var)) = (cgi, cgj) {
+                                    if c1 == c2 {
+                                        if let Ok(value) = expr.evaluate(p, self) {
+                                            let var_index = p.variable_index(var.name()).unwrap();
+                                            let mut new_state = self.clone();
+                                            new_state.memory[var_index as usize] = value;
+                                            new_state.ptrs[i] = *target_i;
+                                            new_state.ptrs[j] = *target_j;
+                                            transitions.push(new_state);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    (Instr::SyncSend { channel: c1, expr }, Instr::Branch { choices: cj, .. }) => {
                         for (cgj, target_j) in cj {
-                            if let (CG::Send(c1, expr), CG::Receive(c2, var)) = (cgi, cgj) {
-                                if c1 == c2 {
+                            if let CG::Receive(c2, var) = cgj {
+                                if c1 == c2.name() {
                                     if let Ok(value) = expr.evaluate(p, self) {
                                         let var_index = p.variable_index(var.name()).unwrap();
                                         let mut new_state = self.clone();
                                         new_state.memory[var_index as usize] = value;
-                                        new_state.ptrs[i] = *target_i;
+                                        new_state.ptrs[i] = new_state.ptrs[i].bump();
                                         new_state.ptrs[j] = *target_j;
                                         transitions.push(new_state);
                                     }
@@ -414,43 +431,25 @@ impl State {
                             }
                         }
                     }
-                } else if let (
-                    Instr::SyncSend { channel: c1, expr },
-                    Instr::Branch { choices: cj, .. },
-                ) = (&p[self.ptrs[i]], &p[self.ptrs[j]])
-                {
-                    for (cgj, target_j) in cj {
-                        if let CG::Receive(c2, var) = cgj {
-                            if c1 == c2.name() {
-                                if let Ok(value) = expr.evaluate(p, self) {
-                                    let var_index = p.variable_index(var.name()).unwrap();
-                                    let mut new_state = self.clone();
-                                    new_state.memory[var_index as usize] = value;
-                                    new_state.ptrs[i] = new_state.ptrs[i].bump();
-                                    new_state.ptrs[j] = *target_j;
-                                    transitions.push(new_state);
+                    (
+                        Instr::Branch { choices: ci, .. },
+                        Instr::SyncReceive { channel: c2, var },
+                    ) => {
+                        for (cgi, target_i) in ci {
+                            if let CG::Send(c1, expr) = cgi {
+                                if c1.name() == c2 {
+                                    if let Ok(value) = expr.evaluate(p, self) {
+                                        let mut new_state = self.clone();
+                                        new_state.memory[*var as usize] = value;
+                                        new_state.ptrs[i] = *target_i;
+                                        new_state.ptrs[j] = new_state.ptrs[j].bump();
+                                        transitions.push(new_state);
+                                    }
                                 }
                             }
                         }
                     }
-                } else if let (
-                    Instr::Branch { choices: ci, .. },
-                    Instr::SyncReceive { channel: c2, var }, 
-                ) = (&p[self.ptrs[i]], &p[self.ptrs[j]])
-                {
-                    for (cgi, target_i) in ci {
-                        if let CG::Send(c1, expr) = cgi {
-                            if c1.name() == c2 {
-                                if let Ok(value) = expr.evaluate(p, self) {
-                                    let mut new_state = self.clone();
-                                    new_state.memory[*var as usize] = value;
-                                    new_state.ptrs[i] = *target_i;
-                                    new_state.ptrs[j] = new_state.ptrs[j].bump();
-                                    transitions.push(new_state);
-                                }
-                            }
-                        }
-                    }
+                    _ => {}
                 }
             }
         }
