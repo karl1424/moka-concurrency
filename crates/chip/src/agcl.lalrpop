@@ -593,6 +593,8 @@ LTLFormula: LTLFormula = {
     "F" <LTLFormula> => LTLFormula::Finally(Box::new(<>)),
     "(" <LTLFormula_> ")",
     <OperationP> => LTLFormula::Operation(Box::new(<>)),
+    <Target> "?" <AExpr> => LTLFormula::ChannelFormula(Box::new(ChannelFormula::ChannelHead(<>))),
+    <Target> "??" <AExpr> => LTLFormula::ChannelFormula(Box::new(ChannelFormula::ChannelContains(<>))),
 
     #[precedence(level="1")] #[assoc(side="left")]
     <l:LTLFormula> "&" <r:LTLFormula> => LTLFormula::And(Box::new(l), Box::new(r)),

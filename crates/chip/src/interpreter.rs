@@ -6,8 +6,8 @@ use mcltl::ltl::expression::Literal;
 
 use crate::{
     ast::{
-        AExpr, AOp, BExpr, BufferSize, CG, Channel, Command, CommandKind, Commands, Field,
-        Function, Int, LTLFormula, Locator, LogicOp, Operation, RelOp, Target, TupleSpace,
+        AExpr, AOp, BExpr, BufferSize, CG, Channel, ChannelFormula, Command, CommandKind, Commands,
+        Field, Function, Int, LTLFormula, Locator, LogicOp, Operation, RelOp, Target, TupleSpace,
         TupleSpaceType, Variable,
     },
     ast_ext::FreeVariables,
@@ -1173,11 +1173,30 @@ impl BExpr {
     }
 }
 
+impl ChannelFormula {
+    pub fn evaluate(&self, p: &Program, state: &State) -> Result<bool, StepError> {
+        Ok(match self {
+            ChannelFormula::ChannelHead(c, e) => {
+                let e = e.evaluate(p, state)?;
+                let index = p.channel_index(c.name()).unwrap();
+                let v = state.channels[index as usize].first().unwrap();
+                e == *v
+            }
+            ChannelFormula::ChannelContains(c, e) => {
+                let e = e.evaluate(p, state)?;
+                let index = p.channel_index(c.name()).unwrap();
+                state.channels[index as usize].contains(&e)
+            }
+        })
+    }
+}
+
 impl LTLFormula {
     pub fn to_mcltl(
         &self,
         rels: &mut Vec<(AExpr, RelOp, AExpr)>,
         operations: &mut Vec<Operation>,
+        channels: &mut Vec<ChannelFormula>,
     ) -> mcltl::ltl::expression::LTLExpression {
         use mcltl::ltl::expression::LTLExpression;
 
@@ -1206,16 +1225,37 @@ impl LTLFormula {
                 };
                 LTLExpression::Literal(format!("o{idx}").into())
             }
-            LTLFormula::Not(e) => !e.to_mcltl(rels, operations),
-            LTLFormula::And(p, q) => p.to_mcltl(rels, operations) & q.to_mcltl(rels, operations),
-            LTLFormula::Or(p, q) => p.to_mcltl(rels, operations) | q.to_mcltl(rels, operations),
-            LTLFormula::Implies(p, q) => {
-                !p.to_mcltl(rels, operations) | q.to_mcltl(rels, operations)
+            LTLFormula::ChannelFormula(cf) => {
+                let idx = if let Some(idx) = channels.iter().position(|x| x == cf.as_ref()) {
+                    idx
+                } else {
+                    channels.push(cf.as_ref().clone());
+                    channels.len() - 1
+                };
+                LTLExpression::Literal(format!("c{idx}").into())
             }
-            LTLFormula::Until(p, q) => p.to_mcltl(rels, operations).U(q.to_mcltl(rels, operations)),
-            LTLFormula::Next(p) => LTLExpression::X(Box::new(p.to_mcltl(rels, operations))),
-            LTLFormula::Globally(p) => LTLExpression::G(Box::new(p.to_mcltl(rels, operations))),
-            LTLFormula::Finally(p) => LTLExpression::F(Box::new(p.to_mcltl(rels, operations))),
+            LTLFormula::Not(e) => !e.to_mcltl(rels, operations, channels),
+            LTLFormula::And(p, q) => {
+                p.to_mcltl(rels, operations, channels) & q.to_mcltl(rels, operations, channels)
+            }
+            LTLFormula::Or(p, q) => {
+                p.to_mcltl(rels, operations, channels) | q.to_mcltl(rels, operations, channels)
+            }
+            LTLFormula::Implies(p, q) => {
+                !p.to_mcltl(rels, operations, channels) | q.to_mcltl(rels, operations, channels)
+            }
+            LTLFormula::Until(p, q) => p
+                .to_mcltl(rels, operations, channels)
+                .U(q.to_mcltl(rels, operations, channels)),
+            LTLFormula::Next(p) => {
+                LTLExpression::X(Box::new(p.to_mcltl(rels, operations, channels)))
+            }
+            LTLFormula::Globally(p) => {
+                LTLExpression::G(Box::new(p.to_mcltl(rels, operations, channels)))
+            }
+            LTLFormula::Finally(p) => {
+                LTLExpression::F(Box::new(p.to_mcltl(rels, operations, channels)))
+            }
         }
     }
 }

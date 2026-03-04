@@ -4,9 +4,9 @@ use indexmap::IndexSet;
 use itertools::Either;
 
 use crate::ast::{
-    AExpr, AOp, Array, BExpr, CG, Command, CommandKind, Commands, CommunicationGuard, Field,
-    Function, Guard, LTLFormula, LogicOp, Operation, PredicateBlock, PredicateChain, Target,
-    TargetDef, TargetKind, Variable,
+    AExpr, AOp, Array, BExpr, CG, ChannelFormula, Command, CommandKind, Commands,
+    CommunicationGuard, Field, Function, Guard, LTLFormula, LogicOp, Operation, PredicateBlock,
+    PredicateChain, Target, TargetDef, TargetKind, Variable,
 };
 
 impl Target<()> {
@@ -349,6 +349,20 @@ impl FreeVariables for Operation {
     }
 }
 
+impl FreeVariables for ChannelFormula {
+    fn fv(&self) -> IndexSet<Target> {
+        match self {
+            ChannelFormula::ChannelHead(_, e) | ChannelFormula::ChannelContains(_, e) => e.fv(),
+        }
+    }
+
+    fn funs(&self) -> IndexSet<Function> {
+        match self {
+            ChannelFormula::ChannelHead(_, e) | ChannelFormula::ChannelContains(_, e) => e.funs(),
+        }
+    }
+}
+
 impl FreeVariables for BExpr {
     fn fv(&self) -> IndexSet<Target> {
         match self {
@@ -528,6 +542,7 @@ impl FreeVariables for LTLFormula {
             }
             LTLFormula::Until(l, r) => l.fv().union(&r.fv()).cloned().collect(),
             LTLFormula::Next(x) | LTLFormula::Globally(x) | LTLFormula::Finally(x) => x.fv(),
+            LTLFormula::ChannelFormula(cf) => cf.fv(),
         }
     }
     fn funs(&self) -> IndexSet<Function> {
@@ -541,6 +556,7 @@ impl FreeVariables for LTLFormula {
             }
             LTLFormula::Until(l, r) => l.funs().union(&r.funs()).cloned().collect(),
             LTLFormula::Next(x) | LTLFormula::Globally(x) | LTLFormula::Finally(x) => x.funs(),
+            LTLFormula::ChannelFormula(cf) => cf.funs(),
         }
     }
 }

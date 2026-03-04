@@ -182,6 +182,7 @@ pub enum LTLFormula {
     Locator(Locator),
     Rel(AExpr, RelOp, AExpr),
     Operation(Box<Operation>),
+    ChannelFormula(Box<ChannelFormula>),
     Not(Box<LTLFormula>),
     And(Box<LTLFormula>, Box<LTLFormula>),
     Or(Box<LTLFormula>, Box<LTLFormula>),
@@ -190,6 +191,12 @@ pub enum LTLFormula {
     Next(Box<LTLFormula>),
     Globally(Box<LTLFormula>),
     Finally(Box<LTLFormula>),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ChannelFormula {
+    ChannelHead(Target<Box<AExpr>>, AExpr),
+    ChannelContains(Target<Box<AExpr>>, AExpr),
 }
 
 pub type LTLProperty = (SourceSpan, LTLFormula);

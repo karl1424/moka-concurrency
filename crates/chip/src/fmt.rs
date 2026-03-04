@@ -3,7 +3,7 @@ use std::fmt::Display;
 use itertools::Itertools;
 
 use crate::ast::{
-    AExpr, AOp, Array, BExpr, CG, Command, CommandKind, Commands, CommunicationGuard, Field, Function, Guard, LTLFormula, LTLProgram, Locator, LogicOp, Operation, PredicateBlock, PredicateChain, Quantifier, RelOp, Target, Variable
+    AExpr, AOp, Array, BExpr, CG, ChannelFormula, Command, CommandKind, Commands, CommunicationGuard, Field, Function, Guard, LTLFormula, LTLProgram, Locator, LogicOp, Operation, PredicateBlock, PredicateChain, Quantifier, RelOp, Target, Variable
 };
 
 impl Display for Variable {
@@ -83,7 +83,10 @@ impl CommandKind<(), ()> {
                 format!("do {}\nod", guards.iter().map(|g| g.fmt()).format("\n[] "))
             }
             CommandKind::LoopCG((), guards) => {
-                format!("loop {}\npool", guards.iter().map(|g| g.fmt()).format("\n[] "))
+                format!(
+                    "loop {}\npool",
+                    guards.iter().map(|g| g.fmt()).format("\n[] ")
+                )
             }
             CommandKind::O(op) => format!("{op}"),
             CommandKind::Send(ch, expr) => format!("{ch}!{expr}"),
@@ -138,7 +141,7 @@ impl<Prev: Display, Inv: Display> Display for CommunicationGuard<Prev, Inv> {
             "{} ->\n{}",
             match &self.guard {
                 CG::BoolExpression(b) => b.to_string(),
-                CG::Send(ch,a) => ch.to_string() + "!" + &a.to_string(),
+                CG::Send(ch, a) => ch.to_string() + "!" + &a.to_string(),
                 CG::Receive(t, var) => t.to_string() + "?" + &var.to_string(),
             },
             self.cmds
@@ -156,7 +159,7 @@ impl CommunicationGuard<(), ()> {
             "{} ->\n{}",
             match &self.guard {
                 CG::BoolExpression(b) => b.to_string(),
-                CG::Send(ch,a) => ch.to_string() + "!" + &a.to_string(),
+                CG::Send(ch, a) => ch.to_string() + "!" + &a.to_string(),
                 CG::Receive(t, var) => t.to_string() + "?" + &var.to_string(),
             },
             self.cmds
@@ -286,6 +289,14 @@ impl Display for Locator {
         }
     }
 }
+impl Display for ChannelFormula {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ChannelFormula::ChannelHead(c, e) => write!(f, "{c}?{e}"),
+            ChannelFormula::ChannelContains(c, e) => write!(f, "{c}??{e}"),
+        }
+    }
+}
 impl Display for LTLFormula {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -293,6 +304,7 @@ impl Display for LTLFormula {
             LTLFormula::Locator(locator) => write!(f, "{locator}"),
             LTLFormula::Rel(aexpr, rel_op, aexpr1) => write!(f, "({aexpr} {rel_op} {aexpr1})"),
             LTLFormula::Operation(op) => write!(f, "{op}"),
+            LTLFormula::ChannelFormula(cf) => write!(f, "{cf}"),
             LTLFormula::Not(ltlformula) => write!(f, "!{ltlformula}"),
             LTLFormula::And(ltlformula, ltlformula1) => write!(f, "({ltlformula} & {ltlformula1})"),
             LTLFormula::Or(ltlformula, ltlformula1) => write!(f, "({ltlformula} | {ltlformula1})"),
