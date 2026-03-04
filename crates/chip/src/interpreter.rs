@@ -393,6 +393,64 @@ impl State {
                             transitions.push(new_state);
                         }
                     }
+                } else if let (
+                    Instr::Branch { choices: ci, .. },
+                    Instr::Branch { choices: cj, .. },
+                ) = (&p[self.ptrs[i]], &p[self.ptrs[j]])
+                {
+                    for (cgi, target_i) in ci {
+                        for (cgj, target_j) in cj {
+                            if let (CG::Send(c1, expr), CG::Receive(c2, var)) = (cgi, cgj) {
+                                if c1 == c2 {
+                                    if let Ok(value) = expr.evaluate(p, self) {
+                                        let var_index = p.variable_index(var.name()).unwrap();
+                                        let mut new_state = self.clone();
+                                        new_state.memory[var_index as usize] = value;
+                                        new_state.ptrs[i] = *target_i;
+                                        new_state.ptrs[j] = *target_j;
+                                        transitions.push(new_state);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else if let (
+                    Instr::SyncSend { channel: c1, expr },
+                    Instr::Branch { choices: cj, .. },
+                ) = (&p[self.ptrs[i]], &p[self.ptrs[j]])
+                {
+                    for (cgj, target_j) in cj {
+                        if let CG::Receive(c2, var) = cgj {
+                            if c1 == c2.name() {
+                                if let Ok(value) = expr.evaluate(p, self) {
+                                    let var_index = p.variable_index(var.name()).unwrap();
+                                    let mut new_state = self.clone();
+                                    new_state.memory[var_index as usize] = value;
+                                    new_state.ptrs[i] = new_state.ptrs[i].bump();
+                                    new_state.ptrs[j] = *target_j;
+                                    transitions.push(new_state);
+                                }
+                            }
+                        }
+                    }
+                } else if let (
+                    Instr::Branch { choices: ci, .. },
+                    Instr::SyncReceive { channel: c2, var }, 
+                ) = (&p[self.ptrs[i]], &p[self.ptrs[j]])
+                {
+                    for (cgi, target_i) in ci {
+                        if let CG::Send(c1, expr) = cgi {
+                            if c1.name() == c2 {
+                                if let Ok(value) = expr.evaluate(p, self) {
+                                    let mut new_state = self.clone();
+                                    new_state.memory[*var as usize] = value;
+                                    new_state.ptrs[i] = *target_i;
+                                    new_state.ptrs[j] = new_state.ptrs[j].bump();
+                                    transitions.push(new_state);
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -742,6 +800,9 @@ impl State {
         match cg {
             CG::BoolExpression(expr) => self.eval_bool_guard(p, expr),
             CG::Send(ch, expr) => {
+                if p.channel_index(ch.name()).is_none() {
+                    return vec![];
+                }
                 if let Ok(value) = expr.evaluate(p, self) {
                     let mut channels = self.channels.clone();
                     let ch_index = p.channel_index(ch.name()).unwrap();
@@ -773,6 +834,9 @@ impl State {
                 vec![]
             }
             CG::Receive(ch, var) => {
+                if p.channel_index(ch.name()).is_none() {
+                    return vec![];
+                }
                 let mut channels = self.channels.clone();
                 let mut memory = self.memory.clone();
                 let ch_index = p.channel_index(ch.name()).unwrap();
