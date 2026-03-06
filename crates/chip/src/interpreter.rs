@@ -6,9 +6,9 @@ use mcltl::ltl::expression::Literal;
 
 use crate::{
     ast::{
-        AExpr, AOp, BExpr, BufferSize, CG, Channel, ChannelFormula, Command, CommandKind, Commands,
-        Field, Function, Int, LTLFormula, Locator, LogicOp, Operation, RelOp, Target, TupleSpace,
-        TupleSpaceType, Variable,
+        AExpr, AOp, Array, BExpr, BufferSize, CG, Channel, ChannelFormula, Command, CommandKind,
+        Commands, Field, Function, Int, LTLFormula, Locator, LogicOp, Operation, RelOp, Target,
+        TupleSpace, TupleSpaceType, Variable,
     },
     ast_ext::FreeVariables,
     parse::SourceSpan,
@@ -25,7 +25,7 @@ impl InstrPtr {
 #[derive(Debug)]
 enum Instr {
     Nop,
-    Assign(u32, AExpr),
+    Assign(Target<Box<AExpr>>, AExpr),
     Branch {
         choices: Vec<(CG, InstrPtr)>,
         otherwise: Option<InstrPtr>,
@@ -36,25 +36,33 @@ enum Instr {
     Get(TupleSpaceType, u32, Vec<Field>),
     Query(TupleSpaceType, u32, Vec<Field>),
     Send(BufferSize, u32, AExpr),
-    Receive(u32, u32),
+    Receive(u32, Target<Box<AExpr>>),
     SyncSend {
         channel: String,
         expr: AExpr,
     },
     SyncReceive {
         channel: String,
-        var: u32,
+        target: Target<Box<AExpr>>,
     },
 }
 
 #[derive(Debug)]
 pub struct Program {
     variables: Vec<Variable>,
+    arrays: Vec<ArrayMeta>,
     tuple_spaces: Vec<TupleSpaceMeta>,
     channels: Vec<ChannelMeta>,
     instrs: Vec<Instr>,
     entry_points: Vec<InstrPtr>,
     source_map: Vec<Option<SourceSpan>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ArrayMeta {
+    pub name: Array,
+    pub base_index: u32,
+    pub length: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -84,20 +92,36 @@ impl Program {
         additional_vars: impl IntoIterator<Item = Variable>,
         tuple_spaces: IndexMap<Variable, TupleSpace>,
         channels: IndexMap<Variable, Channel>,
+        arrays: IndexMap<Array, Vec<i32>>,
     ) -> Program {
-        let mut p = Program {
-            variables: cmdss
-                .iter()
-                .flat_map(|cmds| {
-                    cmds.fv().into_iter().filter_map(|t| match t {
-                        Target::Variable(var) => Some(var),
-                        Target::Array(_, _) => None,
-                    })
+        let variables: Vec<_> = cmdss
+            .iter()
+            .flat_map(|cmds| {
+                cmds.fv().into_iter().filter_map(|t| match t {
+                    Target::Variable(var) => Some(var),
+                    Target::Array(_, _) => None,
                 })
-                .chain(additional_vars)
-                .sorted()
-                .dedup()
-                .collect(),
+            })
+            .chain(additional_vars)
+            .sorted()
+            .dedup()
+            .collect();
+
+        let mut array_meta = Vec::new();
+        let mut current_index = variables.len() as u32;
+
+        for (name, values) in arrays {
+            array_meta.push(ArrayMeta {
+                name,
+                base_index: current_index,
+                length: values.len() as u32,
+            });
+            current_index += values.len() as u32;
+        }
+
+        let mut p = Program {
+            variables,
+            arrays: array_meta,
             instrs: Vec::new(),
             entry_points: Vec::new(),
             source_map: Vec::new(),
@@ -133,13 +157,21 @@ impl Program {
 
     pub fn initial_state(
         &self,
-        memory: impl Fn(&Variable) -> i32,
+        var_init: impl Fn(&Variable) -> i32,
+        arr_init: impl Fn(&Array) -> Vec<i32>,
         tuple_space_memory: Vec<Vec<Vec<Int>>>,
         channel_memory: Vec<Vec<Int>>,
     ) -> State {
+        let mut memory = self.variables.iter().map(var_init).collect::<Vec<_>>();
+
+        for ArrayMeta { name, .. } in self.arrays.iter() {
+            let arr_values = arr_init(name);
+            memory.extend_from_slice(&arr_values);
+        }
+
         State {
             ptrs: self.entry_points.clone(),
-            memory: self.variables.iter().map(memory).collect(),
+            memory,
             tuple_spaces: tuple_space_memory,
             channels: channel_memory,
         }
@@ -154,6 +186,17 @@ impl Program {
             .iter()
             .position(|v| v.0 == name)
             .map(|idx| idx as _)
+    }
+
+    fn array_meta(&self, arr: &Array) -> Option<(u32, u32)> {
+        self.arrays
+            .iter()
+            .find(|ArrayMeta { name, .. }| name == arr)
+            .map(
+                |ArrayMeta {
+                     base_index, length, ..
+                 }| (*base_index, *length),
+            )
     }
 
     fn tuple_space_index(&self, name: &str) -> Option<u32> {
@@ -194,8 +237,7 @@ impl Program {
     fn compile_command(&mut self, cmd: &Command<(), ()>) {
         match &cmd.kind {
             CommandKind::Assignment(t, e) => {
-                let index = self.variable_index(t.name()).unwrap();
-                self.push(Instr::Assign(index, e.clone()), Some(cmd.span));
+                self.push(Instr::Assign(t.clone(), e.clone()), Some(cmd.span));
             }
             CommandKind::Skip => {
                 self.push(Instr::Nop, Some(cmd.span));
@@ -312,15 +354,14 @@ impl Program {
                     );
                 }
             }
-            CommandKind::Receive(ch, v) => {
+            CommandKind::Receive(ch, target) => {
                 if let Some(ch_index) = self.channel_index(ch.name()) {
-                    let var_index = self.variable_index(v.name()).unwrap();
-                    self.push(Instr::Receive(ch_index, var_index), Some(cmd.span));
+                    self.push(Instr::Receive(ch_index, target.clone()), Some(cmd.span));
                 } else {
                     self.push(
                         Instr::SyncReceive {
                             channel: ch.name().to_string(),
-                            var: self.variable_index(v.name()).unwrap(),
+                            target: target.clone(),
                         },
                         Some(cmd.span),
                     );
@@ -349,6 +390,8 @@ pub enum StepError {
     Stuck,
     Halt,
     HitOld,
+    ArrayIndexNegative,
+    ArrayIndexOutOfBounds,
 }
 
 impl State {
@@ -368,13 +411,16 @@ impl State {
                     Err(err) => Either::Right([Err(err)].into_iter()),
                 });
 
-        let sync_steps = self.find_sync_pairs(p).into_iter().map(Ok);
+        let sync_steps = match self.find_sync_pairs(p) {
+            Ok(states) => states.into_iter().map(Ok).collect::<Vec<_>>(),
+            Err(e) => vec![Err(e)],
+        };
 
         regular_steps
             .chain(sync_steps)
             .map(|s| Ok(s?.follow_gotos(p)))
     }
-    fn find_sync_pairs(&self, p: &Program) -> Vec<State> {
+    fn find_sync_pairs(&self, p: &Program) -> Result<Vec<State>, StepError> {
         let mut transitions = Vec::new();
 
         for i in 0..self.ptrs.len() {
@@ -385,12 +431,19 @@ impl State {
                 match (&p[self.ptrs[i]], &p[self.ptrs[j]]) {
                     (
                         Instr::SyncSend { channel: c1, expr },
-                        Instr::SyncReceive { channel: c2, var },
+                        Instr::SyncReceive {
+                            channel: c2,
+                            target,
+                        },
                     ) => {
                         if c1 == c2 {
                             if let Ok(value) = expr.evaluate(p, self) {
                                 let mut new_state = self.clone();
-                                new_state.memory[*var as usize] = value;
+                                let index = match target {
+                                    Target::Variable(var) => p.variable_index(&var.0).unwrap(),
+                                    Target::Array(arr, idx) => self.array_index(arr, idx, p)?,
+                                };
+                                new_state.memory[index as usize] = value;
                                 new_state.ptrs[i] = new_state.ptrs[i].bump();
                                 new_state.ptrs[j] = new_state.ptrs[j].bump();
                                 transitions.push(new_state);
@@ -400,12 +453,19 @@ impl State {
                     (Instr::Branch { choices: ci, .. }, Instr::Branch { choices: cj, .. }) => {
                         for (cgi, target_i) in ci {
                             for (cgj, target_j) in cj {
-                                if let (CG::Send(c1, expr), CG::Receive(c2, var)) = (cgi, cgj) {
+                                if let (CG::Send(c1, expr), CG::Receive(c2, t)) = (cgi, cgj) {
                                     if c1 == c2 {
                                         if let Ok(value) = expr.evaluate(p, self) {
-                                            let var_index = p.variable_index(var.name()).unwrap();
+                                            let index = match t {
+                                                Target::Variable(var) => {
+                                                    p.variable_index(&var.0).unwrap()
+                                                }
+                                                Target::Array(arr, idx) => {
+                                                    self.array_index(arr, idx, p)?
+                                                }
+                                            };
                                             let mut new_state = self.clone();
-                                            new_state.memory[var_index as usize] = value;
+                                            new_state.memory[index as usize] = value;
                                             new_state.ptrs[i] = *target_i;
                                             new_state.ptrs[j] = *target_j;
                                             transitions.push(new_state);
@@ -417,12 +477,19 @@ impl State {
                     }
                     (Instr::SyncSend { channel: c1, expr }, Instr::Branch { choices: cj, .. }) => {
                         for (cgj, target_j) in cj {
-                            if let CG::Receive(c2, var) = cgj {
+                            if let CG::Receive(c2, t) = cgj {
                                 if c1 == c2.name() {
                                     if let Ok(value) = expr.evaluate(p, self) {
-                                        let var_index = p.variable_index(var.name()).unwrap();
+                                        let index = match t {
+                                            Target::Variable(var) => {
+                                                p.variable_index(&var.0).unwrap()
+                                            }
+                                            Target::Array(arr, idx) => {
+                                                self.array_index(arr, idx, p)?
+                                            }
+                                        };
                                         let mut new_state = self.clone();
-                                        new_state.memory[var_index as usize] = value;
+                                        new_state.memory[index as usize] = value;
                                         new_state.ptrs[i] = new_state.ptrs[i].bump();
                                         new_state.ptrs[j] = *target_j;
                                         transitions.push(new_state);
@@ -433,14 +500,25 @@ impl State {
                     }
                     (
                         Instr::Branch { choices: ci, .. },
-                        Instr::SyncReceive { channel: c2, var },
+                        Instr::SyncReceive {
+                            channel: c2,
+                            target,
+                        },
                     ) => {
                         for (cgi, target_i) in ci {
                             if let CG::Send(c1, expr) = cgi {
                                 if c1.name() == c2 {
                                     if let Ok(value) = expr.evaluate(p, self) {
                                         let mut new_state = self.clone();
-                                        new_state.memory[*var as usize] = value;
+                                        let index = match target {
+                                            Target::Variable(var) => {
+                                                p.variable_index(&var.0).unwrap()
+                                            }
+                                            Target::Array(arr, idx) => {
+                                                self.array_index(arr, idx, p)?
+                                            }
+                                        };
+                                        new_state.memory[index as usize] = value;
                                         new_state.ptrs[i] = *target_i;
                                         new_state.ptrs[j] = new_state.ptrs[j].bump();
                                         transitions.push(new_state);
@@ -453,7 +531,7 @@ impl State {
                 }
             }
         }
-        transitions
+        Ok(transitions)
     }
 
     fn follow_gotos(mut self, p: &Program) -> State {
@@ -509,6 +587,23 @@ impl State {
         all_stuck_or_halted && any_stuck
     }
 
+    fn array_index(&self, arr: &Array, idx: &Box<AExpr>, p: &Program) -> Result<u32, StepError> {
+        let (base_index, length) = p.array_meta(arr).unwrap();
+        let idx = idx.evaluate(p, self)?;
+
+        if idx < 0 {
+            return Err(StepError::ArrayIndexNegative);
+        }
+
+        let idx_u32 = idx as u32;
+
+        if idx_u32 >= length {
+            return Err(StepError::ArrayIndexOutOfBounds);
+        }
+
+        Ok(base_index + idx_u32)
+    }
+
     fn matches(&self, t: &Vec<i32>, fields: &Vec<Field>, p: &Program) -> Result<bool, StepError> {
         if t.len() != fields.len() {
             return Ok(false);
@@ -537,7 +632,7 @@ impl State {
         ts_index: &u32,
         p: &Program,
         remove: bool,
-    ) -> (Memory, Vec<Vec<Vec<i32>>>) {
+    ) -> Result<(Memory, Vec<Vec<Vec<i32>>>), StepError> {
         let mut mem_copy = memory.clone();
         let mut ts_copy = tuple_spaces.clone();
 
@@ -547,13 +642,17 @@ impl State {
             ts_copy[*ts_index as usize][pos].clone()
         };
         for (v, f) in tuple.iter().zip(fields.iter()) {
-            if let Field::Variable(var) = f {
-                let index = p.variable_index(var.name()).unwrap();
+            if let Field::Variable(t) = f {
+                let index = match t {
+                    Target::Variable(var) => p.variable_index(&var.0).unwrap(),
+                    Target::Array(arr, idx) => self.array_index(arr, idx, p)?,
+                };
+
                 mem_copy[index as usize] = *v;
             }
         }
 
-        (mem_copy, ts_copy)
+        Ok((mem_copy, ts_copy))
     }
 
     fn match_tuple_space_type(
@@ -588,7 +687,7 @@ impl State {
                             ts_index,
                             p,
                             remove,
-                        );
+                        )?;
 
                         results.push((mem_copy, ts_copy, self.channels.clone(), ptr.bump()));
                     }
@@ -619,7 +718,7 @@ impl State {
                         ts_index,
                         p,
                         remove,
-                    );
+                    )?;
                     Ok(Either::Left(
                         [(new_mem, new_ts, self.channels.clone(), ptr.bump())].into_iter(),
                     ))
@@ -646,7 +745,7 @@ impl State {
                         ts_index,
                         p,
                         remove,
-                    );
+                    )?;
                     Ok(Either::Left(
                         [(new_mem, new_ts, self.channels.clone(), ptr.bump())].into_iter(),
                     ))
@@ -665,7 +764,7 @@ impl State {
                             ts_index,
                             p,
                             remove,
-                        );
+                        )?;
                         return Ok(Either::Left(
                             [(new_mem, new_ts, self.channels.clone(), ptr.bump())].into_iter(),
                         ));
@@ -685,7 +784,7 @@ impl State {
                             ts_index,
                             p,
                             remove,
-                        );
+                        )?;
                         return Ok(Either::Left(
                             [(new_mem, new_ts, self.channels.clone(), ptr.bump())].into_iter(),
                         ));
@@ -795,12 +894,16 @@ impl State {
         }
     }
 
-    fn eval_guard(&self, p: &Program, cg: &CG) -> Vec<(Memory, Vec<Vec<Vec<Int>>>, Vec<Vec<Int>>)> {
+    fn eval_guard(
+        &self,
+        p: &Program,
+        cg: &CG,
+    ) -> Result<Vec<(Memory, Vec<Vec<Vec<Int>>>, Vec<Vec<Int>>)>, StepError> {
         match cg {
-            CG::BoolExpression(expr) => self.eval_bool_guard(p, expr),
+            CG::BoolExpression(expr) => Ok(self.eval_bool_guard(p, expr)),
             CG::Send(ch, expr) => {
                 if p.channel_index(ch.name()).is_none() {
-                    return vec![];
+                    return Ok(vec![]);
                 }
                 if let Ok(value) = expr.evaluate(p, self) {
                     let mut channels = self.channels.clone();
@@ -811,43 +914,46 @@ impl State {
                         BufferSize::Finite(max_size) => {
                             if channels[ch_index as usize].len() < max_size as usize {
                                 channels[ch_index as usize].push(value);
-                                return vec![(
+                                return Ok(vec![(
                                     self.memory.clone(),
                                     self.tuple_spaces.clone(),
                                     channels,
-                                )];
+                                )]);
                             } else {
-                                return vec![];
+                                return Ok(vec![]);
                             }
                         }
                         BufferSize::Infinite => {
                             channels[ch_index as usize].push(value);
-                            return vec![(
+                            return Ok(vec![(
                                 self.memory.clone(),
                                 self.tuple_spaces.clone(),
                                 channels,
-                            )];
+                            )]);
                         }
                     }
                 };
-                vec![]
+                Ok(vec![])
             }
-            CG::Receive(ch, var) => {
+            CG::Receive(ch, target) => {
                 if p.channel_index(ch.name()).is_none() {
-                    return vec![];
+                    return Ok(vec![]);
                 }
                 let mut channels = self.channels.clone();
                 let mut memory = self.memory.clone();
                 let ch_index = p.channel_index(ch.name()).unwrap();
-                let var_index = p.variable_index(var.name()).unwrap();
+                let index = match target {
+                    Target::Variable(var) => p.variable_index(&var.0).unwrap(),
+                    Target::Array(arr, idx) => self.array_index(arr, idx, p)?,
+                };
 
                 if let Some(v) = channels[ch_index as usize].first() {
-                    memory[var_index as usize] = *v;
+                    memory[index as usize] = *v;
                     channels[ch_index as usize].remove(0);
 
-                    return vec![(memory, self.tuple_spaces.clone(), channels)];
+                    return Ok(vec![(memory, self.tuple_spaces.clone(), channels)]);
                 }
-                vec![]
+                Ok(vec![])
             }
         }
     }
@@ -870,10 +976,17 @@ impl State {
                 )]
                 .into_iter(),
             )),
-            Instr::Assign(v, e) => {
+            Instr::Assign(target, e) => {
                 let value = e.evaluate(p, self)?;
                 let mut memory = self.memory.clone();
-                memory[*v as usize] = value;
+
+                let index = match target {
+                    Target::Variable(var) => p.variable_index(&var.0).unwrap(),
+                    Target::Array(arr, idx) => self.array_index(arr, idx, p)?,
+                };
+
+                memory[index as usize] = value;
+
                 Ok(Either::Left(
                     [(
                         memory,
@@ -887,7 +1000,7 @@ impl State {
             Instr::Branch { choices, otherwise } => {
                 let mut valid = Vec::new();
                 for (cg, target) in choices {
-                    for (mem, ts, ch) in self.eval_guard(p, cg) {
+                    for (mem, ts, ch) in self.eval_guard(p, cg)? {
                         valid.push((mem, ts, ch, *target));
                     }
                 }
@@ -983,12 +1096,17 @@ impl State {
                     .into_iter(),
                 ))
             }
-            Instr::Receive(ch_index, var_index) => {
+            Instr::Receive(ch_index, target) => {
                 let mut channels = self.channels.clone();
                 let mut memory = self.memory.clone();
 
+                let index = match target {
+                    Target::Variable(var) => p.variable_index(&var.0).unwrap(),
+                    Target::Array(arr, idx) => self.array_index(arr, idx, p)?,
+                };
+
                 if let Some(v) = channels[*ch_index as usize].first() {
-                    memory[*var_index as usize] = *v;
+                    memory[index as usize] = *v;
                     channels[*ch_index as usize].remove(0);
 
                     return Ok(Either::Left(
@@ -1023,8 +1141,29 @@ impl fmt::Display for StateFormat<'_> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let mut parts = Vec::new();
 
-        for (value, var) in self.state.memory.iter().zip(&self.program.variables) {
-            parts.push(format!("{var} = {value}"));
+        let var_count = self.program.variables.len();
+        self.state
+            .memory
+            .iter()
+            .take(var_count)
+            .zip(&self.program.variables)
+            .for_each(|(value, var)| parts.push(format!("{var} = {value}")));
+
+        for ArrayMeta {
+            name,
+            base_index,
+            length,
+        } in &self.program.arrays
+        {
+            let array_values: Vec<String> = self
+                .state
+                .memory
+                .iter()
+                .skip(*base_index as usize)
+                .take(*length as usize)
+                .map(|v| v.to_string())
+                .collect();
+            parts.push(format!("{name} = [{}]", array_values.join(", ")));
         }
 
         for (ts_meta, ts_values) in self
@@ -1071,7 +1210,10 @@ impl AExpr {
         Ok(match self {
             AExpr::Number(n) => *n,
             AExpr::Reference(r) => {
-                let index = p.variable_index(r.name()).unwrap();
+                let index = match r {
+                    Target::Variable(var) => p.variable_index(&var.0).unwrap(),
+                    Target::Array(arr, idx) => state.array_index(arr, idx, p)?,
+                };
                 state.memory[index as usize]
             }
             AExpr::Binary(l, op, r) => {

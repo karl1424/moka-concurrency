@@ -35,9 +35,12 @@ SepNonEmpty<T, S>: Vec<T> = {
 #[inline]
 Target: Target<Box<AExpr>> = {
     Variable => Target::Variable(<>),
+    <arr:Array> "[" <idx:AExpr> "]" => Target::Array(arr, Box::new(idx)),
 }
 #[inline]
 Variable: Variable = Var => Variable(<>);
+#[inline]
+Array: Array = Var => Array(<>);
 
 Function<X>: Function = {
     "division" "(" <X> "," <X> ")"  => Function::Division(<>),
@@ -244,7 +247,7 @@ pub LTLProgram: LTLProgram = {
     <assignments:LTLInitialAssign>
     <commands:LTLCommands>
     <properties:LTLProperty*> =>? {
-        let (initial, tuple_spaces, channels) = assignments;
+        let (initial, arrays, tuple_spaces, channels) = assignments;
 
         for command in &commands.0 {
             match &command.kind {
@@ -328,6 +331,7 @@ pub LTLProgram: LTLProgram = {
 
         Ok(LTLProgram {
             initial,
+            arrays,
             tuple_spaces,
             channels,
             commands: vec![commands],
@@ -340,7 +344,7 @@ pub LTLProgram: LTLProgram = {
     <commands:SepNonEmpty<LTLCommands, "[]">>
     "rap"
     <properties:LTLProperty*> =>? {
-        let (initial, tuple_spaces, channels) = assignments;
+        let (initial, arrays, tuple_spaces, channels) = assignments;
 
         for commands in &commands {
             for command in &commands.0 {
@@ -425,6 +429,7 @@ pub LTLProgram: LTLProgram = {
 
         Ok(LTLProgram {
             initial,
+            arrays,
             tuple_spaces,
             channels,
             commands,
@@ -433,15 +438,17 @@ pub LTLProgram: LTLProgram = {
     },
 };
 
-LTLInitialAssign: (IndexMap<Variable, i32>, IndexMap<Variable, TupleSpace>, IndexMap<Variable, Channel>) = {
+LTLInitialAssign: (IndexMap<Variable, i32>, IndexMap<Array, Vec<i32>>, IndexMap<Variable, TupleSpace>, IndexMap<Variable, Channel>) = {
     <lines:(">" <SepNonEmpty<LTLAssignment, ",">>)*> => {
         let mut initial = IndexMap::new();
+        let mut arrays = IndexMap::new();
         let mut tuple_spaces = IndexMap::new();
         let mut channels = IndexMap::new(); 
         for line in lines {
             for assignment in line {
                 match assignment {
                     AssignmentKind::Int(var, val) => { initial.insert(var, val); },
+                    AssignmentKind::Array(var, vals) => { arrays.insert(var, vals); },
                     AssignmentKind::TupleSpace(var, ts) => {
                         tuple_spaces.insert(var, TupleSpace {
                             space_type: ts.space_type,
@@ -459,13 +466,14 @@ LTLInitialAssign: (IndexMap<Variable, i32>, IndexMap<Variable, TupleSpace>, Inde
             }
         }
 
-        (initial, tuple_spaces, channels)
+        (initial, arrays, tuple_spaces, channels)
     }
 };
 
 LTLAssignment: AssignmentKind = {
     <var:Var> "=" <val:Int> => AssignmentKind::Int(Variable(var), val),
     <var:Var> "=" "-" <val:Int> => AssignmentKind::Int(Variable(var), -val),
+    <var:Var> "=" <vals:ArrayInit> => AssignmentKind::Array(Array(var), vals),
     <var:Var> "=" <ts:TupleSpace> => AssignmentKind::TupleSpace(Variable(var), TupleSpace {
         space_type: ts.0,
         size: ts.1,
@@ -476,6 +484,11 @@ LTLAssignment: AssignmentKind = {
         channel: ch.1,
     }),
 };
+
+ArrayInit: Vec<i32> = {
+    "[" "]" => vec![],
+    "[" <vals:SepNonEmpty<Value, ",">> "]" => vals,
+}
 
 TupleSpaceType: TupleSpaceType = {
     "R" => TupleSpaceType::Random,

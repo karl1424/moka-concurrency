@@ -231,12 +231,14 @@ pub struct Channel {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum AssignmentKind {
     Int(Variable, i32),
+    Array(Array, Vec<i32>),
     TupleSpace(Variable, TupleSpace),
     Channel(Variable, Channel),
 }
 
 pub struct LTLProgram {
     pub initial: IndexMap<Variable, i32>,
+    pub arrays: IndexMap<Array, Vec<i32>>,
     pub tuple_spaces: IndexMap<Variable, TupleSpace>,
     pub channels: IndexMap<Variable, Channel>,
     pub commands: Vec<Commands<(), ()>>,

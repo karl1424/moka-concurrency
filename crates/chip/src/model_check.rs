@@ -62,9 +62,11 @@ impl ReachableStates {
                 .chain(ltl_program.initial.keys().cloned()),
             ltl_program.tuple_spaces.clone(),
             ltl_program.channels.clone(),
+            ltl_program.arrays.clone(),
         );
         let state = program.initial_state(
             |var| ltl_program.initial.get(var).copied().unwrap_or_default(),
+            |arr| ltl_program.arrays.get(arr).cloned().unwrap_or_default(),
             ltl_program
                 .tuple_spaces
                 .clone()
