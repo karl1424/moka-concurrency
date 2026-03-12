@@ -202,6 +202,7 @@ impl AGCLCommand {
             | CommandKind::O(_)
             | CommandKind::Send(_, _)
             | CommandKind::Receive(_, _)
+            | CommandKind::Broadcast(_, _, _)
             | CommandKind::LoopCG(_, _)
             | CommandKind::IfCG(_) => true,
             CommandKind::If(gcs) | CommandKind::Loop(_, gcs) => {

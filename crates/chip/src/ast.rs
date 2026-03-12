@@ -54,6 +54,7 @@ pub enum CommandKind<Pred, Inv> {
     O(Operation),
     Send(Target<Box<AExpr>>, AExpr),
     Receive(Target<Box<AExpr>>, Target<Box<AExpr>>),
+    Broadcast(Target<Box<AExpr>>, Int, AExpr)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

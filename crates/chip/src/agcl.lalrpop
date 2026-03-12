@@ -143,6 +143,7 @@ LTLCommandKind: CommandKind<(), ()> = {
     <Operation>                                 => CommandKind::O(<>),
     <Target> "!" <AExpr>                        => CommandKind::Send(<>),
     <Target> "?" <Target>                       => CommandKind::Receive(<>),
+    <Target> "!!" <Int> <AExpr>                 => CommandKind::Broadcast(<>),
 };
 LTLGuards: Vec<Guard<(), ()>> = SepNonEmpty<LTLGuard, "[]">;
 LTLGuard: Guard<(), ()> = {

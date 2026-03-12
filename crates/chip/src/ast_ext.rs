@@ -216,6 +216,8 @@ impl<Pred: FreeVariables, Inv: FreeVariables> FreeVariables for CommandKind<Pred
             CommandKind::O(op) => op.fv(),
             CommandKind::Send(_, a) => a.fv(),
             CommandKind::Receive(_, x) => x.fv(),
+            CommandKind::Broadcast(_, _, a) => a.fv(),
+
         }
     }
     fn funs(&self) -> IndexSet<Function> {
@@ -231,6 +233,7 @@ impl<Pred: FreeVariables, Inv: FreeVariables> FreeVariables for CommandKind<Pred
             CommandKind::O(op) => op.funs(),
             CommandKind::Send(_, a) => a.funs(),
             CommandKind::Receive(_, x) => x.funs(),
+            CommandKind::Broadcast(_, _, a) => a.funs(),
         }
     }
 }

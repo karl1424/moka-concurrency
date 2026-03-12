@@ -45,6 +45,11 @@ enum Instr {
         channel: String,
         target: Target<Box<AExpr>>,
     },
+    Broadcast {
+        channel: String,
+        k: Int,
+        expr: AExpr,
+    }
 }
 
 #[derive(Debug)]
@@ -366,6 +371,16 @@ impl Program {
                         Some(cmd.span),
                     );
                 }
+            }
+            CommandKind::Broadcast(ch, k, e) => {
+                self.push(
+                    Instr::Broadcast {
+                        channel: ch.name().to_string(),
+                        k: *k,
+                        expr: e.clone(),
+                    },
+                    Some(cmd.span),
+                );
             }
         }
     }
@@ -1117,6 +1132,7 @@ impl State {
             }
             Instr::SyncSend { .. } => Err(StepError::Stuck),
             Instr::SyncReceive { .. } => Err(StepError::Stuck),
+            Instr::Broadcast { .. } => Err(StepError::Stuck),
         }
     }
 
