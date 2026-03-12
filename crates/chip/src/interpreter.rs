@@ -49,7 +49,7 @@ enum Instr {
         channel: String,
         k: Int,
         expr: AExpr,
-    }
+    },
 }
 
 #[derive(Debug)]
@@ -439,6 +439,61 @@ impl State {
         let mut transitions = Vec::new();
 
         for i in 0..self.ptrs.len() {
+            match &p[self.ptrs[i]] {
+                Instr::Broadcast {
+                    channel: c1,
+                    k,
+                    expr,
+                } => {
+                    let value = expr.evaluate(p, self)?;
+                    let mut counter = 0;
+                    let mut receivers = Vec::new();
+                    for j in 0..self.ptrs.len() {
+                        if i == j {
+                            continue;
+                        }
+                        match &p[self.ptrs[j]] {
+                            Instr::SyncReceive {
+                                channel: c2,
+                                target,
+                            } if c1 == c2 => {
+                                receivers.push((j, target.clone(), None));
+                                counter += 1;
+                            }
+                            Instr::Branch { choices, .. } => {
+                                for (cg, t) in choices {
+                                    if let CG::Receive(c2, target) = cg {
+                                        if c1 == c2.name() {
+                                            receivers.push((j, target.clone(), Some(*t)));
+                                            counter += 1;
+                                        }
+                                    }
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                    if *k <= counter {
+                        let mut new_state = self.clone();
+                        for (j, target, branch_ptr) in receivers {
+                            let index = match target {
+                                Target::Variable(var) => p.variable_index(&var.0).unwrap(),
+                                Target::Array(arr, idx) => self.array_index(&arr, &idx, p)?,
+                            };
+                            new_state.memory[index as usize] = value;
+
+                            if let Some(ptr) = branch_ptr {
+                                new_state.ptrs[j] = ptr;
+                            } else {
+                                new_state.ptrs[j] = new_state.ptrs[j].bump();
+                            }
+                        }
+                        new_state.ptrs[i] = self.ptrs[i].bump();
+                        transitions.push(new_state);
+                    }
+                }
+                _ => {}
+            }
             for j in 0..self.ptrs.len() {
                 if i == j {
                     continue;
