@@ -509,6 +509,67 @@ impl State {
                         transitions.push(new_state);
                     }
                 }
+                Instr::Gather {
+                    channel: c1,
+                    k,
+                    array,
+                    target,
+                } => {
+                    let (array_base, array_len) = p.array_meta(array).unwrap();
+                    let mut senders = Vec::new();
+                    for j in 0..self.ptrs.len() {
+                        if i == j {
+                            continue;
+                        }
+                        match &p[self.ptrs[j]] {
+                            Instr::SyncSend { channel: c2, expr } if c1 == c2 => {
+                                let value = expr.evaluate(p, self)?;
+                                senders.push((j, value, None));
+                            }
+                            Instr::Branch { choices, .. } => {
+                                for (cg, t) in choices {
+                                    if let CG::Send(c2, expr) = cg {
+                                        if c1 == c2.name() {
+                                            let value = expr.evaluate(p, self)?;
+                                            senders.push((j, value, Some(*t)));
+                                        }
+                                    }
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+
+                    if senders.len() >= *k as usize{
+
+                        for perm in senders.iter().permutations(senders.len()) {
+                            let mut new_state = self.clone();
+
+                            for (idx, (j, value, branch_ptr)) in perm.clone().into_iter().enumerate() {
+                                if idx < array_len as usize  {
+                                    new_state.memory[array_base as usize + idx] = *value;
+                                }
+
+                                if let Some(ptr) = branch_ptr {
+                                    new_state.ptrs[*j] = *ptr;
+                                } else {
+                                    new_state.ptrs[*j] = new_state.ptrs[*j].bump();
+                                }
+                            }
+
+                            let index = match target {
+                                Target::Variable(var) => p.variable_index(&var.0).unwrap(),
+                                Target::Array(arr, idx) => self.array_index(&arr, &idx, p)?,
+                            };
+
+                            new_state.memory[index as usize] = perm.len().min(array_len as usize) as i32;
+
+                            new_state.ptrs[i] = self.ptrs[i].bump();
+
+                            transitions.push(new_state);
+                        }
+                    }
+                }
                 _ => {}
             }
             for j in 0..self.ptrs.len() {
