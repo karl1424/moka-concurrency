@@ -50,6 +50,12 @@ enum Instr {
         k: Int,
         expr: AExpr,
     },
+    Gather {
+        channel: String,
+        k: Int,
+        array: Array,
+        target: Target<Box<AExpr>>,
+    },
 }
 
 #[derive(Debug)]
@@ -376,8 +382,19 @@ impl Program {
                 self.push(
                     Instr::Broadcast {
                         channel: ch.name().to_string(),
-                        k: *k,
+                        k: k.clone(),
                         expr: e.clone(),
+                    },
+                    Some(cmd.span),
+                );
+            }
+            CommandKind::Gather(ch, k, arr, x) => {
+                self.push(
+                    Instr::Gather {
+                        channel: ch.name().to_string(),
+                        k: k.clone(),
+                        array: arr.clone(),
+                        target: x.clone(),
                     },
                     Some(cmd.span),
                 );
@@ -1188,6 +1205,7 @@ impl State {
             Instr::SyncSend { .. } => Err(StepError::Stuck),
             Instr::SyncReceive { .. } => Err(StepError::Stuck),
             Instr::Broadcast { .. } => Err(StepError::Stuck),
+            Instr::Gather { .. } => Err(StepError::Stuck),
         }
     }
 

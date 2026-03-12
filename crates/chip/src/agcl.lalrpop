@@ -144,6 +144,7 @@ LTLCommandKind: CommandKind<(), ()> = {
     <Target> "!" <AExpr>                        => CommandKind::Send(<>),
     <Target> "?" <Target>                       => CommandKind::Receive(<>),
     <Target> "!!" <Int> <AExpr>                 => CommandKind::Broadcast(<>),
+    <Target> "??" <Int> <Array> <Target>        => CommandKind::Gather(<>),
 };
 LTLGuards: Vec<Guard<(), ()>> = SepNonEmpty<LTLGuard, "[]">;
 LTLGuard: Guard<(), ()> = {

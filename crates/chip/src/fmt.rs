@@ -3,7 +3,9 @@ use std::fmt::Display;
 use itertools::Itertools;
 
 use crate::ast::{
-    AExpr, AOp, Array, BExpr, CG, ChannelFormula, Command, CommandKind, Commands, CommunicationGuard, Field, Function, Guard, LTLFormula, LTLProgram, Locator, LogicOp, Operation, PredicateBlock, PredicateChain, Quantifier, RelOp, Target, Variable
+    AExpr, AOp, Array, BExpr, CG, ChannelFormula, Command, CommandKind, Commands,
+    CommunicationGuard, Field, Function, Guard, LTLFormula, LTLProgram, Locator, LogicOp,
+    Operation, PredicateBlock, PredicateChain, Quantifier, RelOp, Target, Variable,
 };
 
 impl Display for Variable {
@@ -65,6 +67,7 @@ impl<Prev: Display, Inv: Display> Display for CommandKind<Prev, Inv> {
             CommandKind::Send(ch, expr) => write!(f, "{ch}!{expr}"),
             CommandKind::Receive(ch, var) => write!(f, "{ch}?{var}"),
             CommandKind::Broadcast(ch, n, expr) => write!(f, "{ch}!!{n} {expr}"),
+            CommandKind::Gather(ch, n, arr, x) => write!(f, "{ch}??{n} {arr} {x}"),
         }
     }
 }
@@ -93,6 +96,7 @@ impl CommandKind<(), ()> {
             CommandKind::Send(ch, expr) => format!("{ch}!{expr}"),
             CommandKind::Receive(ch, var) => format!("{ch}?{var}"),
             CommandKind::Broadcast(ch, n, expr) => format!("{ch}!!{n} {expr}"),
+            CommandKind::Gather(ch, n, arr, x) => format!("{ch}??{n} {arr} {x}"),
         }
     }
 }
