@@ -104,6 +104,7 @@ impl Program {
         tuple_spaces: IndexMap<Variable, TupleSpace>,
         channels: IndexMap<Variable, Channel>,
         arrays: IndexMap<Array, Vec<i32>>,
+        additional_arrs: impl IntoIterator<Item = Array>,
     ) -> Program {
         let variables: Vec<_> = cmdss
             .iter()
@@ -118,10 +119,30 @@ impl Program {
             .dedup()
             .collect();
 
-        let mut array_meta = Vec::new();
-        let mut current_index = variables.len() as u32;
+        let arr_names: Vec<_> = cmdss
+            .iter()
+            .flat_map(|cmds| {
+                cmds.fv().into_iter().filter_map(|t| match t {
+                    Target::Variable(_) => None,
+                    Target::Array(arr, _) => Some(arr),
+                })
+            })
+            .dedup()
+            .collect();
 
-        for (name, values) in arrays {
+        let free_arrs: IndexMap<Array, Vec<i32>> = arr_names
+            .into_iter()
+            .chain(additional_arrs)
+            .filter(|arr| !arrays.contains_key(arr))
+            .map(|arr| (arr.clone(), vec![0]))
+            .collect();
+
+        let all_arrs: Vec<_> = arrays.into_iter().chain(free_arrs).collect();
+
+        let mut current_index = variables.len() as u32;
+        let mut array_meta = Vec::new();
+
+        for (name, values) in all_arrs {
             array_meta.push(ArrayMeta {
                 name,
                 base_index: current_index,
@@ -175,8 +196,9 @@ impl Program {
     ) -> State {
         let mut memory = self.variables.iter().map(var_init).collect::<Vec<_>>();
 
-        for ArrayMeta { name, .. } in self.arrays.iter() {
-            let arr_values = arr_init(name);
+        for ArrayMeta { name, length, .. } in self.arrays.iter() {
+            let mut arr_values = arr_init(name);
+            arr_values.resize(*length as usize, 0);
             memory.extend_from_slice(&arr_values);
         }
 
@@ -540,13 +562,14 @@ impl State {
                         }
                     }
 
-                    if senders.len() >= *k as usize{
-
+                    if senders.len() >= *k as usize {
                         for perm in senders.iter().permutations(senders.len()) {
                             let mut new_state = self.clone();
 
-                            for (idx, (j, value, branch_ptr)) in perm.clone().into_iter().enumerate() {
-                                if idx < array_len as usize  {
+                            for (idx, (j, value, branch_ptr)) in
+                                perm.clone().into_iter().enumerate()
+                            {
+                                if idx < array_len as usize {
                                     new_state.memory[array_base as usize + idx] = *value;
                                 }
 
@@ -562,7 +585,8 @@ impl State {
                                 Target::Array(arr, idx) => self.array_index(&arr, &idx, p)?,
                             };
 
-                            new_state.memory[index as usize] = perm.len().min(array_len as usize) as i32;
+                            new_state.memory[index as usize] =
+                                perm.len().min(array_len as usize) as i32;
 
                             new_state.ptrs[i] = self.ptrs[i].bump();
 

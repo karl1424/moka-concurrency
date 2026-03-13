@@ -63,6 +63,14 @@ impl ReachableStates {
             ltl_program.tuple_spaces.clone(),
             ltl_program.channels.clone(),
             ltl_program.arrays.clone(),
+            ltl_program
+                .properties
+                .iter()
+                .flat_map(|(_, property)| property.fv())
+                .filter_map(|t| match t {
+                    Target::Array(arr, _) => Some(arr),
+                    _ => None,
+                }),
         );
         let state = program.initial_state(
             |var| ltl_program.initial.get(var).copied().unwrap_or_default(),
