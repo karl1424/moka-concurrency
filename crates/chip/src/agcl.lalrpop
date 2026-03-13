@@ -254,7 +254,7 @@ pub LTLProgram: LTLProgram = {
         for command in &commands.0 {
             match &command.kind {
                 CommandKind::O(operation) => {
-                    let target_var = match operation {   
+                    let target_var = match operation {
                         Operation::Put(target, _) 
                         | Operation::Get(target, _) 
                         | Operation::Query(target, _) => target,
@@ -275,7 +275,7 @@ pub LTLProgram: LTLProgram = {
                     for g in guards {
                         match &g.guard {
                             BExpr::OP(op) => {
-                                let target_var = match op {   
+                                let target_var = match op { 
                                     Operation::Put(target, _) 
                                     | Operation::Get(target, _)
                                     | Operation::Query(target, _) => target,
@@ -302,9 +302,9 @@ pub LTLProgram: LTLProgram = {
                             CG::BoolExpression(expr) => {
                                 match expr {
                                     BExpr::OP(op) => {
-                                        let target_var = match op {   
-                                            Operation::Put(target, _) 
-                                            | Operation::Get(target, _) 
+                                        let target_var = match op {
+                                            Operation::Put(target, _)
+                                            | Operation::Get(target, _)
                                             | Operation::Query(target, _) => target,
                                         };
                                         if let Target::Variable(var) = target_var {
@@ -328,7 +328,47 @@ pub LTLProgram: LTLProgram = {
                 }
                 _ => {},
             }
-            
+        }
+
+        for (s, p) in &properties {  
+            match p {  
+                LTLFormula::Operation(op) => {
+                    let target_var = match op.as_ref() {
+                        Operation::Put(target, _)
+                        | Operation::Get(target, _)
+                        | Operation::Query(target, _) => target,
+                    };
+                    if let Target::Variable(var) = target_var {
+                        if !tuple_spaces.contains_key(var) {
+                            return Err(lalrpop_util::ParseError::User {
+                                error: crate::parse::CustomError::Undefined {
+                                    name: var.0.clone(),
+                                    from: s.offset(),
+                                    to: s.offset() + var.0.len(),
+                                },
+                            });
+                        }
+                    }
+                }
+                LTLFormula::ChannelFormula(cf) => {
+                    let target_var = match cf.as_ref() {
+                        ChannelFormula::ChannelHead(target, _)
+                        | ChannelFormula::ChannelContains(target, _) => target,
+                    };
+                    if let Target::Variable(var) = target_var {
+                        if !channels.contains_key(var) {
+                            return Err(lalrpop_util::ParseError::User {
+                                error: crate::parse::CustomError::Undefined {
+                                    name: var.0.clone(),
+                                    from: s.offset(),
+                                    to: s.offset() + var.0.len(),
+                                },
+                            });
+                        }
+                    }
+                }
+                _ => {}
+            }
         }
 
         Ok(LTLProgram {
@@ -352,7 +392,7 @@ pub LTLProgram: LTLProgram = {
             for command in &commands.0 {
                 match &command.kind {
                     CommandKind::O(operation) => {
-                        let target_var = match operation {   
+                        let target_var = match operation {
                             Operation::Put(target, _) 
                             | Operation::Get(target, _) 
                             |Operation::Query(target, _) => target,
@@ -373,8 +413,8 @@ pub LTLProgram: LTLProgram = {
                         for g in guards {
                             match &g.guard {
                                 BExpr::OP(op) => {
-                                    let target_var = match op {   
-                                        Operation::Put(target, _) 
+                                    let target_var = match op {
+                                        Operation::Put(target, _)
                                         | Operation::Get(target, _)
                                         | Operation::Query(target, _) => target,
                                     };
@@ -400,9 +440,9 @@ pub LTLProgram: LTLProgram = {
                                 CG::BoolExpression(expr) => {
                                     match expr {
                                         BExpr::OP(op) => {
-                                            let target_var = match op {   
-                                                Operation::Put(target, _) 
-                                                | Operation::Get(target, _) 
+                                            let target_var = match op {
+                                                Operation::Put(target, _)
+                                                | Operation::Get(target, _)
                                                 | Operation::Query(target, _) => target,
                                             };
                                             if let Target::Variable(var) = target_var {
@@ -426,6 +466,47 @@ pub LTLProgram: LTLProgram = {
                     }
                     _ => {},
                 }
+            }
+        }
+
+        for (s, p) in &properties {
+            match p {  
+                LTLFormula::Operation(op) => {
+                    let target_var = match op.as_ref() {
+                        Operation::Put(target, _)
+                        | Operation::Get(target, _)
+                        | Operation::Query(target, _) => target,
+                    };
+                    if let Target::Variable(var) = target_var {
+                        if !tuple_spaces.contains_key(var) {
+                            return Err(lalrpop_util::ParseError::User {
+                                error: crate::parse::CustomError::Undefined {
+                                    name: var.0.clone(),
+                                    from: s.offset(),
+                                    to: s.offset() + var.0.len(),
+                                },
+                            });
+                        }
+                    }
+                }
+                LTLFormula::ChannelFormula(cf) => {
+                    let target_var = match cf.as_ref() {
+                        ChannelFormula::ChannelHead(target, _)
+                        | ChannelFormula::ChannelContains(target, _) => target,
+                    };
+                    if let Target::Variable(var) = target_var {
+                        if !channels.contains_key(var) {
+                            return Err(lalrpop_util::ParseError::User {
+                                error: crate::parse::CustomError::Undefined {
+                                    name: var.0.clone(),
+                                    from: s.offset(),
+                                    to: s.offset() + var.0.len(),
+                                },
+                            });
+                        }
+                    }
+                }
+                _ => {}
             }
         }
 
@@ -488,7 +569,6 @@ LTLAssignment: AssignmentKind = {
 };
 
 ArrayInit: Vec<i32> = {
-    "[" "]" => vec![],
     "[" <vals:SepNonEmpty<Value, ",">> "]" => vals,
 }
 
@@ -538,52 +618,52 @@ Value: Int = {
     "-" <value:Int> => -value,
 }
 
-TupleSpace: (TupleSpaceType, BufferSize, Vec<Vec<Int>>) = {  
-    <from:@L> "(" <space_type:TupleSpaceType> "," <size:BufferSize> "," <space:TupleSpaceValues> ")" <to:@R> =>? {  
-        match size {  
-            BufferSize::Finite(n) => {  
-                if space.len() as i32 > n {  
-                    Err(lalrpop_util::ParseError::User {  
-                        error: crate::parse::CustomError::BufferOverflow {  
-                            size: n,  
-                            actual: space.len() as i32,  
-                            from,  
-                            to,  
-                        },  
-                    })  
-                } else {  
-                    Ok((space_type, size, space))  
-                }  
-            }  
-            BufferSize::Infinite => {  
-                Ok((space_type, size, space))  
-            }  
-        }  
-    }  
+TupleSpace: (TupleSpaceType, BufferSize, Vec<Vec<Int>>) = {
+    <from:@L> "(" <space_type:TupleSpaceType> "," <size:BufferSize> "," <space:TupleSpaceValues> ")" <to:@R> =>? {
+        match size {
+            BufferSize::Finite(n) => {
+                if space.len() as i32 > n {
+                    Err(lalrpop_util::ParseError::User {
+                        error: crate::parse::CustomError::BufferOverflow {
+                            size: n,
+                            actual: space.len() as i32,
+                            from,
+                            to,
+                        },
+                    })
+                } else {
+                    Ok((space_type, size, space))
+                }
+            }
+            BufferSize::Infinite => {
+                Ok((space_type, size, space))
+            }
+        }
+    }
 };
 
-Channel: (BufferSize, Vec<Int>) = {  
-    <from:@L> "(" <size:BufferSize> "," <channel:ChannelValues> ")" <to:@R> =>? {  
-        match size {  
-            BufferSize::Finite(n) => {  
-                if channel.len() as i32 > n {  
-                    Err(lalrpop_util::ParseError::User {  
-                        error: crate::parse::CustomError::BufferOverflow {  
-                            size: n,  
-                            actual: channel.len() as i32,  
-                            from,  
-                            to,  
-                        },  
-                    })  
-                } else {  
-                    Ok((size, channel))  
-                }  
-            }  
-            BufferSize::Infinite => {  
-                Ok((size, channel))  
-            }  
-        }  
-    }  
+Channel: (BufferSize, Vec<Int>) = {
+    <from:@L> "(" <size:BufferSize> "," <channel:ChannelValues> ")" <to:@R> =>? {
+        match size {
+            BufferSize::Finite(n) => {
+                if channel.len() as i32 > n {
+                    Err(lalrpop_util::ParseError::User {
+                        error: crate::parse::CustomError::BufferOverflow {
+                            size: n,
+                            actual: channel.len() as i32,
+                            from,
+                            to,
+                        },
+                    })
+                } else {
+                    Ok((size, channel))
+                }
+            }
+            BufferSize::Infinite => {
+                Ok((size, channel))
+            }
+        }
+    }
 };
 
 LTLProperty: (SourceSpan, LTLFormula) = {
