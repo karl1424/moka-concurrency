@@ -269,12 +269,13 @@ pub LTLProgram: LTLProgram = {
     },
 };
 
-LTLInitialAssign: (IndexMap<Variable, i32>, IndexMap<Array, Vec<i32>>, IndexMap<Variable, TupleSpace>, IndexMap<Variable, Channel>) = {
-    <lines:(">" <SepNonEmpty<LTLAssignment, ",">>)*> => {
+LTLInitialAssign: (IndexMap<Variable, i32>, IndexMap<Array, Vec<i32>>, IndexMap<Variable, TupleSpace>, IndexMap<Variable, Channel>, Vec<Variable>) = {
+    <from:@L> <lines:(">" <SepNonEmpty<LTLAssignment, ",">>)*> <to:@R> =>? {
         let mut init_variables = IndexMap::new();
         let mut init_arrays = IndexMap::new();
         let mut init_tuple_spaces = IndexMap::new();
-        let mut init_channels = IndexMap::new(); 
+        let mut init_async_channels = IndexMap::new(); 
+        let mut init_sync_channels = Vec::new();
         for line in lines {
             for assignment in line {
                 match assignment {
@@ -287,17 +288,30 @@ LTLInitialAssign: (IndexMap<Variable, i32>, IndexMap<Array, Vec<i32>>, IndexMap<
                             space: ts.space,
                         });
                     },
-                    AssignmentKind::Channel(var, ch) => {
-                        init_channels.insert(var, Channel {
+                    AssignmentKind::AsyncChannel(var, ch) => {
+                        init_async_channels.insert(var, Channel {
                             size: ch.size,
                             channel: ch.channel,
                         });
                     },
+                    AssignmentKind::SyncChannel(var) => {
+                        init_sync_channels.push(var);
+                    },
                 }
             }
         }
-
-        (init_variables, init_arrays, init_tuple_spaces, init_channels)
+        for ac in init_async_channels.keys() {
+            if init_sync_channels.contains(ac){
+                return Err(lalrpop_util::ParseError::User {
+                    error: crate::parse::CustomError::DuplicateChannelName {
+                        name: ac.0.clone(),
+                        from, 
+                        to: to + ac.0.len(),
+                    },
+                });
+            }
+        }
+        Ok((init_variables, init_arrays, init_tuple_spaces, init_async_channels, init_sync_channels))
     }
 };
 
@@ -310,10 +324,22 @@ LTLAssignment: AssignmentKind = {
         size: ts.1,
         space: ts.2,
     }),
-    <var:Var> "=" <ch:Channel> => AssignmentKind::Channel(Variable(var), Channel {
+    <var:Var> "=" <ch:Channel> => AssignmentKind::AsyncChannel(Variable(var), Channel {
         size: ch.0,
         channel: ch.1,
     }),
+    <from:@L> <var:Var> "=" "(" <size:Int> ")" <to:@R> =>? {  
+        if size == 0 {  
+            Ok(AssignmentKind::SyncChannel(Variable(var)))  
+        } else {  
+            Err(lalrpop_util::ParseError::User {
+                error: crate::parse::CustomError::InvalidBufferSize {
+                    from,
+                    to,
+                },
+            })
+        }  
+    },
 };
 
 ArrayInit: Vec<i32> = {

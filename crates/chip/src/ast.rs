@@ -235,7 +235,8 @@ pub enum AssignmentKind {
     Int(Variable, i32),
     Array(Array, Vec<i32>),
     TupleSpace(Variable, TupleSpace),
-    Channel(Variable, Channel),
+    AsyncChannel(Variable, Channel),
+    SyncChannel(Variable),
 }
 
 pub struct LTLProgram {

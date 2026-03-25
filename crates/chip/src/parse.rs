@@ -151,8 +151,17 @@ pub enum ParseError {
     InvalidBufferSize {
         #[source_code]
         src: String,
-        #[label = "Buffer size for tuple spaces and asynchronous channels cannot be 0."]
+        #[label = "The buffer size for this tuple space/channel is invalid"]
         err_span: SourceSpan,
+    },
+    #[error("The channel '{name}' is already defined")]
+    #[diagnostic(help("The channel '{name}' is already defined"))]
+    DuplicateChannelName {
+        #[source_code]
+        src: String,
+        #[label = "Asynchronous and Synchronous channels can not have the same name"]
+        err_span: SourceSpan,
+        name: String,
     },
 }
 
@@ -176,6 +185,11 @@ pub enum CustomError {
         from: usize,
         to: usize,
     },
+    DuplicateChannelName {
+        name: String,
+        from: usize,
+        to: usize,
+    }
 }
 
 impl ParseError {
@@ -231,6 +245,11 @@ impl ParseError {
                 CustomError::InvalidBufferSize { from, to } => ParseError::InvalidBufferSize {
                     src: prep_src(),
                     err_span: (from, to).into(),
+                },
+                CustomError::DuplicateChannelName { name, from, to } => ParseError::DuplicateChannelName {
+                    src: prep_src(),
+                    err_span: (from, to).into(),
+                    name,
                 },
             },
         }

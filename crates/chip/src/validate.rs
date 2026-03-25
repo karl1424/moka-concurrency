@@ -11,27 +11,34 @@ pub fn validate_ltl_program<'a>(
         IndexMap<Array, Vec<i32>>,
         IndexMap<Variable, TupleSpace>,
         IndexMap<Variable, Channel>,
+        Vec<Variable>,
     ),
     commands: Vec<Commands<(), ()>>,
     properties: Vec<LTLProperty>,
 ) -> Result<LTLProgram, LTLParseError<'a>> {
-    let (init_variables, init_arrays, init_tuple_spaces, init_channels) = assignments;
+    let (init_variables, init_arrays, init_tuple_spaces, init_async_channels, init_sync_channels) =
+        assignments;
 
     for commands in &commands {
         for command in &commands.0 {
-            validate_command(command, &init_tuple_spaces, &init_channels)?;
+            validate_command(
+                command,
+                &init_tuple_spaces,
+                &init_async_channels,
+                &init_sync_channels,
+            )?;
         }
     }
 
     for (span, property) in &properties {
-        validate_property(property, span, &init_tuple_spaces, &init_channels)?;
+        validate_property(property, span, &init_tuple_spaces, &init_async_channels)?;
     }
 
     Ok(LTLProgram {
         init_variables,
         init_arrays,
         init_tuple_spaces,
-        init_channels,
+        init_channels: init_async_channels,
         commands,
         properties,
     })
@@ -40,7 +47,8 @@ pub fn validate_ltl_program<'a>(
 fn validate_command<'a>(
     command: &Command<(), ()>,
     tuple_spaces: &IndexMap<Variable, TupleSpace>,
-    _channels: &IndexMap<Variable, Channel>,
+    async_channels: &IndexMap<Variable, Channel>,
+    sync_channels: &Vec<Variable>,
 ) -> Result<(), LTLParseError<'a>> {
     match &command.kind {
         CommandKind::O(operation) => {
@@ -55,6 +63,28 @@ fn validate_command<'a>(
                 });
             }
         }
+        CommandKind::Send(c, _) | CommandKind::Receive(c, _) => {
+            if !async_channels.contains_key(c) && !sync_channels.contains(c) {
+                return Err(ParseError::User {
+                    error: crate::parse::CustomError::Undefined {
+                        name: c.0.clone(),
+                        from: command.span.offset(),
+                        to: command.span.offset() + c.0.len(),
+                    },
+                });
+            }
+        }
+        CommandKind::Broadcast(c, _, _) | CommandKind::Gather(c, _, _, _) => {
+            if !sync_channels.contains(c) {
+                return Err(ParseError::User {
+                    error: crate::parse::CustomError::Undefined {
+                        name: c.0.clone(),
+                        from: command.span.offset(),
+                        to: command.span.offset() + c.0.len(),
+                    },
+                });
+            }
+        }
         CommandKind::Loop(_, guards) => {
             for guard in guards {
                 validate_guard_operations(&guard.guard, tuple_spaces, &command.span)?;
@@ -62,7 +92,7 @@ fn validate_command<'a>(
         }
         CommandKind::IfCG(cgs) | CommandKind::LoopCG(_, cgs) => {
             for cg in cgs {
-                validate_communication_guard(cg, tuple_spaces, &command.span)?;
+                validate_communication_guard(cg, tuple_spaces, async_channels, sync_channels, &command.span)?;
             }
         }
         _ => {}
@@ -96,13 +126,25 @@ fn validate_guard_operations<'a>(
 fn validate_communication_guard<'a>(
     cg: &CommunicationGuard<(), ()>,
     tuple_spaces: &IndexMap<Variable, TupleSpace>,
+    async_channels: &IndexMap<Variable, Channel>,
+    sync_channels: &Vec<Variable>,
     span: &SourceSpan,
 ) -> Result<(), LTLParseError<'a>> {
     match &cg.guard {
         CG::BoolExpression(expr) => {
             validate_guard_operations(expr, tuple_spaces, span)?;
         }
-        _ => {}
+        CG::Send(c, _) | CG::Receive(c, _) => {
+            if !async_channels.contains_key(c) && !sync_channels.contains(c) {
+                return Err(ParseError::User {
+                    error: crate::parse::CustomError::Undefined {
+                        name: c.0.clone(),
+                        from: span.offset(),
+                        to: span.offset() + c.0.len(),
+                    },
+                });
+            }
+        }
     }
     Ok(())
 }
@@ -128,8 +170,9 @@ fn validate_property<'a>(
         }
         LTLFormula::ChannelFormula(cf) => {
             let name = match cf {
-                ChannelFormula::ChannelHead(name, _)
-                | ChannelFormula::ChannelContains(name, _) => name,
+                ChannelFormula::ChannelHead(name, _) | ChannelFormula::ChannelContains(name, _) => {
+                    name
+                }
             };
             if !channels.contains_key(name) {
                 return Err(ParseError::User {
@@ -148,8 +191,6 @@ fn validate_property<'a>(
 
 fn extract_operation_name<'a>(operation: &'a Operation) -> &'a Variable {
     match operation {
-        Operation::Put(name, _) | Operation::Get(name, _) | Operation::Query(name, _) => {
-            name
-        }
+        Operation::Put(name, _) | Operation::Get(name, _) | Operation::Query(name, _) => name,
     }
 }
