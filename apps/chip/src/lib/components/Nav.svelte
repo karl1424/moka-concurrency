@@ -1,25 +1,42 @@
 <script lang="ts">
+  import { page } from '$app/state';
   import { theme } from '$lib/theme';
 
   import Sun from '~icons/heroicons/sun';
   import Moon from '~icons/heroicons/moon';
   import QuestionMarkCircle from '~icons/heroicons/question-mark-circle';
+  import BookOpen from '~icons/heroicons/book-open';
   import type { Component } from 'svelte';
   import type { SvelteHTMLElements } from 'svelte/elements';
   import Guide from './Guide.svelte';
+  import Examples from './Generator.svelte';
 
   interface Props {
     title: string;
     Icon: Component<SvelteHTMLElements['svg']>;
+    onexampleselect?: (code: string) => void;
   }
 
-  let { title, Icon }: Props = $props();
+  let { title, Icon, onexampleselect }: Props = $props();
 
   let showGuide = $state(false);
+  let showExamples = $state(false);
 
   const toggleGuide = (e: MouseEvent) => {
     e.preventDefault();
     showGuide = !showGuide;
+    showExamples = false;
+  };
+
+  const toggleExamples = (e: MouseEvent) => {
+    e.preventDefault();
+    showExamples = !showExamples;
+    showGuide = false;
+  };
+
+  const handleExampleSelect = (code: string) => {
+    onexampleselect?.(code);
+    showExamples = false;
   };
 
   let darkTheme = $state($theme == 'dark');
@@ -33,14 +50,17 @@
 
   $effect(() => {
     const listener = (e: KeyboardEvent) => {
-      if (showGuide && e.key == 'Escape') {
+      if (e.key == 'Escape') {
         showGuide = false;
+        showExamples = false;
       }
     };
     window.addEventListener('keydown', listener);
 
     return () => window.removeEventListener('keydown', listener);
   });
+
+  const isOnMokaPage = $derived(page.url.pathname.startsWith('/moka'));
 </script>
 
 <nav class="flex items-center space-x-2 bg-slate-900 px-2 text-slate-200">
@@ -66,11 +86,32 @@
     </label>
     <input class="hidden" type="checkbox" name="theme" id="theme" bind:checked={darkTheme} />
   </div>
+  {#if isOnMokaPage}
+    <a href="/examples" class="flex items-center space-x-1 p-2" onclick={toggleExamples}>
+      <span>Examples</span>
+      <BookOpen class="w-5" />
+    </a>
+  {/if}
   <a href="/guide" class="flex items-center space-x-1 p-2" onclick={toggleGuide}>
     <span>Guide</span>
     <QuestionMarkCircle />
   </a>
 </nav>
+
+{#if showExamples}
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div class="z-100 fixed inset-0 grid place-items-center" onclick={() => (showExamples = false)}>
+    <div
+      class="relative max-h-[80vh] overflow-auto rounded-xl bg-slate-800 shadow-2xl"
+      onclick={(e) => e.stopPropagation()}
+    >
+      <div class="px-10 py-5">
+        <Examples onselect={handleExampleSelect} />
+      </div>
+    </div>
+  </div>
+{/if}
 
 {#if showGuide}
   <!-- svelte-ignore a11y_click_events_have_key_events -->

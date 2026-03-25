@@ -117,7 +117,7 @@ check ! F ! (x >= -1)       // should hold
   <meta name="description" content="Moka" />
 </svelte:head>
 
-<Nav title="Moka" {Icon} />
+<Nav title="Moka" {Icon} onexampleselect={(code) => (program = code)} />
 
 <div class="relative grid grid-cols-2 grid-rows-[2fr_auto] bg-slate-800">
   <Editor
