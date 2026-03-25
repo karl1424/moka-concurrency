@@ -146,6 +146,14 @@ pub enum ParseError {
         err_span: SourceSpan,
         name: String,
     },
+    #[error("Invalid buffersize")]
+    #[diagnostic(help("Invalid buffersize"))]
+    InvalidBufferSize {
+        #[source_code]
+        src: String,
+        #[label = "Buffer size for tuple spaces and asynchronous channels cannot be 0."]
+        err_span: SourceSpan,
+    },
 }
 
 pub enum CustomError {
@@ -161,6 +169,10 @@ pub enum CustomError {
     },
     Undefined {
         name: String,
+        from: usize,
+        to: usize,
+    },
+    InvalidBufferSize {
         from: usize,
         to: usize,
     },
@@ -211,13 +223,15 @@ impl ParseError {
                     size,
                     actual,
                 },
-                CustomError::Undefined { name, from, to } => {
-                    ParseError::Undefined {
-                        src: prep_src(),
-                        err_span: (from, to).into(),
-                        name,
-                    }
-                }
+                CustomError::Undefined { name, from, to } => ParseError::Undefined {
+                    src: prep_src(),
+                    err_span: (from, to).into(),
+                    name,
+                },
+                CustomError::InvalidBufferSize { from, to } => ParseError::InvalidBufferSize {
+                    src: prep_src(),
+                    err_span: (from, to).into(),
+                },
             },
         }
     }

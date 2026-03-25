@@ -1,0 +1,3 @@
+> x = 5
+skip
+check G x = 5

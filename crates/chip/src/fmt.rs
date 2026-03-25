@@ -329,7 +329,7 @@ impl Display for LTLFormula {
 impl Display for LTLProgram {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let init = self
-            .initial
+            .init_variables
             .iter()
             .map(|(var, val)| format!("{var} = {val}"))
             .format(", ");

@@ -141,10 +141,10 @@ LTLCommandKind: CommandKind<(), ()> = {
     "do" <LTLGuards> "od"                       => CommandKind::Loop((), <>),
     "loop" <LTLCommunicationGuards> "pool"      => CommandKind::LoopCG((), <>),
     <Operation>                                 => CommandKind::O(<>),
-    <Target> "!" <AExpr>                        => CommandKind::Send(<>),
-    <Target> "?" <Target>                       => CommandKind::Receive(<>),
-    <Target> "!!" <Int> <AExpr>                 => CommandKind::Broadcast(<>),
-    <Target> "??" <Int> <Array> <Target>        => CommandKind::Gather(<>),
+    <Variable> "!" <AExpr>                        => CommandKind::Send(<>),
+    <Variable> "?" <Target>                       => CommandKind::Receive(<>),
+    <Variable> "!!" <Int> <AExpr>                 => CommandKind::Broadcast(<>),
+    <Variable> "??" <Int> <Array> <Target>        => CommandKind::Gather(<>),
 };
 LTLGuards: Vec<Guard<(), ()>> = SepNonEmpty<LTLGuard, "[]">;
 LTLGuard: Guard<(), ()> = {
@@ -158,20 +158,20 @@ LTLCommunicationGuard: CommunicationGuard<(), ()> = {
 
 CG: CG = {
     <MokaBExpr> => CG::BoolExpression(<>),
-    <Target> "!" <AExpr> => CG::Send(<>),
-    <Target> "?" <Target> => CG::Receive(<>),
+    <Variable> "!" <AExpr> => CG::Send(<>),
+    <Variable> "?" <Target> => CG::Receive(<>),
 }
 
 Operation: Operation = {
-    <Target> ".put" <TuplePut> => Operation::Put(<>),
-    <Target> ".get" <TupleGet> => Operation::Get(<>),
-    <Target> ".query" <TupleGet> => Operation::Query(<>),
+    <Variable> ".put" <TuplePut> => Operation::Put(<>),
+    <Variable> ".get" <TupleGet> => Operation::Get(<>),
+    <Variable> ".query" <TupleGet> => Operation::Query(<>),
 };
 
 OperationP: Operation = {
-    <Target> ".putP" <TuplePut> => Operation::Put(<>),
-    <Target> ".getP" <TupleGet> => Operation::Get(<>),
-    <Target> ".queryP" <TupleGet> => Operation::Query(<>),
+    <Variable> ".putP" <TuplePut> => Operation::Put(<>),
+    <Variable> ".getP" <TupleGet> => Operation::Get(<>),
+    <Variable> ".queryP" <TupleGet> => Operation::Query(<>),
 };
 
 PredicateChain: PredicateChain = {
@@ -249,136 +249,11 @@ pub LTLProgram: LTLProgram = {
     <assignments:LTLInitialAssign>
     <commands:LTLCommands>
     <properties:LTLProperty*> =>? {
-        let (initial, arrays, tuple_spaces, channels) = assignments;
-
-        for command in &commands.0 {
-            match &command.kind {
-                CommandKind::O(operation) => {
-                    let target_var = match operation {
-                        Operation::Put(target, _) 
-                        | Operation::Get(target, _) 
-                        | Operation::Query(target, _) => target,
-                    };
-                    if let Target::Variable(var) = target_var {
-                        if !tuple_spaces.contains_key(var) {
-                            return Err(lalrpop_util::ParseError::User {
-                                error: crate::parse::CustomError::Undefined {
-                                    name: var.0.clone(),
-                                    from: command.span.offset(),
-                                    to: command.span.offset() + var.0.len(),
-                                },
-                            });
-                        }
-                    }
-                }
-                CommandKind::Loop(_, guards) => {
-                    for g in guards {
-                        match &g.guard {
-                            BExpr::OP(op) => {
-                                let target_var = match op { 
-                                    Operation::Put(target, _) 
-                                    | Operation::Get(target, _)
-                                    | Operation::Query(target, _) => target,
-                                };
-                                if let Target::Variable(var) = target_var {
-                                    if !tuple_spaces.contains_key(var) {
-                                        return Err(lalrpop_util::ParseError::User {
-                                            error: crate::parse::CustomError::Undefined {
-                                                name: var.0.clone(),
-                                                from: command.span.offset(),
-                                                to: command.span.offset() + var.0.len(),
-                                            },
-                                        });
-                                    }
-                                }
-                            }
-                            _ => {}
-                        }
-                    }
-                }
-                CommandKind::IfCG(cgs) | CommandKind::LoopCG(_, cgs) => {
-                    for cg in cgs {
-                        match &cg.guard {
-                            CG::BoolExpression(expr) => {
-                                match expr {
-                                    BExpr::OP(op) => {
-                                        let target_var = match op {
-                                            Operation::Put(target, _)
-                                            | Operation::Get(target, _)
-                                            | Operation::Query(target, _) => target,
-                                        };
-                                        if let Target::Variable(var) = target_var {
-                                            if !tuple_spaces.contains_key(var) {
-                                                return Err(lalrpop_util::ParseError::User {
-                                                    error: crate::parse::CustomError::Undefined {
-                                                        name: var.0.clone(),
-                                                        from: command.span.offset(),
-                                                        to: command.span.offset() + var.0.len(),
-                                                    },
-                                                });
-                                            }
-                                        }
-                                    }
-                                    _ => {}
-                                }
-                            }
-                            _ => {}
-                        }
-                    }
-                }
-                _ => {},
-            }
-        }
-
-        for (s, p) in &properties {  
-            match p {  
-                LTLFormula::Operation(op) => {
-                    let target_var = match op.as_ref() {
-                        Operation::Put(target, _)
-                        | Operation::Get(target, _)
-                        | Operation::Query(target, _) => target,
-                    };
-                    if let Target::Variable(var) = target_var {
-                        if !tuple_spaces.contains_key(var) {
-                            return Err(lalrpop_util::ParseError::User {
-                                error: crate::parse::CustomError::Undefined {
-                                    name: var.0.clone(),
-                                    from: s.offset(),
-                                    to: s.offset() + var.0.len(),
-                                },
-                            });
-                        }
-                    }
-                }
-                LTLFormula::ChannelFormula(cf) => {
-                    let target_var = match cf.as_ref() {
-                        ChannelFormula::ChannelHead(target, _)
-                        | ChannelFormula::ChannelContains(target, _) => target,
-                    };
-                    if let Target::Variable(var) = target_var {
-                        if !channels.contains_key(var) {
-                            return Err(lalrpop_util::ParseError::User {
-                                error: crate::parse::CustomError::Undefined {
-                                    name: var.0.clone(),
-                                    from: s.offset(),
-                                    to: s.offset() + var.0.len(),
-                                },
-                            });
-                        }
-                    }
-                }
-                _ => {}
-            }
-        }
-
-        Ok(LTLProgram {
-            initial,
-            arrays,
-            tuple_spaces,
-            channels,
-            commands: vec![commands],
+        crate::validate::validate_ltl_program(
+            assignments,
+            vec![commands],
             properties,
-        })
+        )
     },
 
     <assignments:LTLInitialAssign>
@@ -386,161 +261,34 @@ pub LTLProgram: LTLProgram = {
     <commands:SepNonEmpty<LTLCommands, "[]">>
     "rap"
     <properties:LTLProperty*> =>? {
-        let (initial, arrays, tuple_spaces, channels) = assignments;
-
-        for commands in &commands {
-            for command in &commands.0 {
-                match &command.kind {
-                    CommandKind::O(operation) => {
-                        let target_var = match operation {
-                            Operation::Put(target, _) 
-                            | Operation::Get(target, _) 
-                            |Operation::Query(target, _) => target,
-                        };
-                        if let Target::Variable(var) = target_var {
-                            if !tuple_spaces.contains_key(var) {
-                                return Err(lalrpop_util::ParseError::User {
-                                    error: crate::parse::CustomError::Undefined {
-                                        name: var.0.clone(),
-                                        from: command.span.offset(),
-                                        to: command.span.offset() + var.0.len(),
-                                    },
-                                });
-                            }
-                        }
-                    }
-                    CommandKind::Loop(_, guards) => {
-                        for g in guards {
-                            match &g.guard {
-                                BExpr::OP(op) => {
-                                    let target_var = match op {
-                                        Operation::Put(target, _)
-                                        | Operation::Get(target, _)
-                                        | Operation::Query(target, _) => target,
-                                    };
-                                    if let Target::Variable(var) = target_var {
-                                        if !tuple_spaces.contains_key(var) {
-                                            return Err(lalrpop_util::ParseError::User {
-                                                error: crate::parse::CustomError::Undefined {
-                                                    name: var.0.clone(),
-                                                    from: command.span.offset(),
-                                                    to: command.span.offset() + var.0.len(),
-                                                },
-                                            });
-                                        }
-                                    }
-                                }
-                                _ => {}
-                            }
-                        }
-                    }
-                    CommandKind::IfCG(cgs) | CommandKind::LoopCG(_, cgs) => {
-                        for cg in cgs {
-                            match &cg.guard {
-                                CG::BoolExpression(expr) => {
-                                    match expr {
-                                        BExpr::OP(op) => {
-                                            let target_var = match op {
-                                                Operation::Put(target, _)
-                                                | Operation::Get(target, _)
-                                                | Operation::Query(target, _) => target,
-                                            };
-                                            if let Target::Variable(var) = target_var {
-                                                if !tuple_spaces.contains_key(var) {
-                                                    return Err(lalrpop_util::ParseError::User {
-                                                        error: crate::parse::CustomError::Undefined {
-                                                            name: var.0.clone(),
-                                                            from: command.span.offset(),
-                                                            to: command.span.offset() + var.0.len(),
-                                                        },
-                                                    });
-                                                }
-                                            }
-                                        }
-                                        _ => {}
-                                    }
-                                }
-                                _ => {}
-                            }
-                        }
-                    }
-                    _ => {},
-                }
-            }
-        }
-
-        for (s, p) in &properties {
-            match p {  
-                LTLFormula::Operation(op) => {
-                    let target_var = match op.as_ref() {
-                        Operation::Put(target, _)
-                        | Operation::Get(target, _)
-                        | Operation::Query(target, _) => target,
-                    };
-                    if let Target::Variable(var) = target_var {
-                        if !tuple_spaces.contains_key(var) {
-                            return Err(lalrpop_util::ParseError::User {
-                                error: crate::parse::CustomError::Undefined {
-                                    name: var.0.clone(),
-                                    from: s.offset(),
-                                    to: s.offset() + var.0.len(),
-                                },
-                            });
-                        }
-                    }
-                }
-                LTLFormula::ChannelFormula(cf) => {
-                    let target_var = match cf.as_ref() {
-                        ChannelFormula::ChannelHead(target, _)
-                        | ChannelFormula::ChannelContains(target, _) => target,
-                    };
-                    if let Target::Variable(var) = target_var {
-                        if !channels.contains_key(var) {
-                            return Err(lalrpop_util::ParseError::User {
-                                error: crate::parse::CustomError::Undefined {
-                                    name: var.0.clone(),
-                                    from: s.offset(),
-                                    to: s.offset() + var.0.len(),
-                                },
-                            });
-                        }
-                    }
-                }
-                _ => {}
-            }
-        }
-
-        Ok(LTLProgram {
-            initial,
-            arrays,
-            tuple_spaces,
-            channels,
+        crate::validate::validate_ltl_program(
+            assignments,
             commands,
             properties,
-        })
+        )
     },
 };
 
 LTLInitialAssign: (IndexMap<Variable, i32>, IndexMap<Array, Vec<i32>>, IndexMap<Variable, TupleSpace>, IndexMap<Variable, Channel>) = {
     <lines:(">" <SepNonEmpty<LTLAssignment, ",">>)*> => {
-        let mut initial = IndexMap::new();
-        let mut arrays = IndexMap::new();
-        let mut tuple_spaces = IndexMap::new();
-        let mut channels = IndexMap::new(); 
+        let mut init_variables = IndexMap::new();
+        let mut init_arrays = IndexMap::new();
+        let mut init_tuple_spaces = IndexMap::new();
+        let mut init_channels = IndexMap::new(); 
         for line in lines {
             for assignment in line {
                 match assignment {
-                    AssignmentKind::Int(var, val) => { initial.insert(var, val); },
-                    AssignmentKind::Array(var, vals) => { arrays.insert(var, vals); },
+                    AssignmentKind::Int(var, val) => { init_variables.insert(var, val); },
+                    AssignmentKind::Array(var, vals) => { init_arrays.insert(var, vals); },
                     AssignmentKind::TupleSpace(var, ts) => {
-                        tuple_spaces.insert(var, TupleSpace {
+                        init_tuple_spaces.insert(var, TupleSpace {
                             space_type: ts.space_type,
                             size: ts.size,
                             space: ts.space,
                         });
                     },
                     AssignmentKind::Channel(var, ch) => {
-                        channels.insert(var, Channel {
+                        init_channels.insert(var, Channel {
                             size: ch.size,
                             channel: ch.channel,
                         });
@@ -549,7 +297,7 @@ LTLInitialAssign: (IndexMap<Variable, i32>, IndexMap<Array, Vec<i32>>, IndexMap<
             }
         }
 
-        (initial, arrays, tuple_spaces, channels)
+        (init_variables, init_arrays, init_tuple_spaces, init_channels)
     }
 };
 
@@ -581,7 +329,18 @@ TupleSpaceType: TupleSpaceType = {
 };
 
 BufferSize: BufferSize = {
-    <n:Int> => BufferSize::Finite(n),
+    <from:@L> <n:Int> <to:@R> =>? {
+        if n == 0 {
+            Err(lalrpop_util::ParseError::User {
+                error: crate::parse::CustomError::InvalidBufferSize {
+                    from,
+                    to,
+                },
+            })
+        } else {
+            Ok(BufferSize::Finite(n))
+        }
+    },
     "INF" => BufferSize::Infinite,
 };
 
@@ -687,9 +446,9 @@ LTLFormula: LTLFormula = {
     "G" <LTLFormula> => LTLFormula::Globally(Box::new(<>)),
     "F" <LTLFormula> => LTLFormula::Finally(Box::new(<>)),
     "(" <LTLFormula_> ")",
-    <OperationP> => LTLFormula::Operation(Box::new(<>)),
-    <Target> "?" <AExpr> => LTLFormula::ChannelFormula(Box::new(ChannelFormula::ChannelHead(<>))),
-    <Target> "??" <AExpr> => LTLFormula::ChannelFormula(Box::new(ChannelFormula::ChannelContains(<>))),
+    <OperationP> => LTLFormula::Operation(<>),
+    <Variable> "?" <AExpr> => LTLFormula::ChannelFormula(ChannelFormula::ChannelHead(<>)),
+    <Variable> "??" <AExpr> => LTLFormula::ChannelFormula(ChannelFormula::ChannelContains(<>)),
 
     #[precedence(level="1")] #[assoc(side="left")]
     <l:LTLFormula> "&" <r:LTLFormula> => LTLFormula::And(Box::new(l), Box::new(r)),

@@ -217,7 +217,11 @@ impl<Pred: FreeVariables, Inv: FreeVariables> FreeVariables for CommandKind<Pred
             CommandKind::Send(_, a) => a.fv(),
             CommandKind::Receive(_, x) => x.fv(),
             CommandKind::Broadcast(_, _, a) => a.fv(),
-            CommandKind::Gather(_, _, _, x) => x.fv(),
+            CommandKind::Gather(_, _, arr, x) => {
+                let mut fv = x.fv();
+                fv.insert(Target::Array(arr.clone(), ()));
+                fv
+            }
         }
     }
     fn funs(&self) -> IndexSet<Function> {

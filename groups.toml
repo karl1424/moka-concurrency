@@ -1,0 +1,4 @@
+[[groups]]
+name = "external-test"
+git = "https://github.com/karl1424/moka-test.git"
+path = "."

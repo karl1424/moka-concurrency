@@ -60,8 +60,7 @@ enum Instr {
 
 #[derive(Debug)]
 pub struct Program {
-    variables: Vec<Variable>,
-    arrays: Vec<ArrayMeta>,
+    targets: Vec<TargetMeta>,
     tuple_spaces: Vec<TupleSpaceMeta>,
     channels: Vec<ChannelMeta>,
     instrs: Vec<Instr>,
@@ -70,8 +69,8 @@ pub struct Program {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ArrayMeta {
-    pub name: Array,
+pub struct TargetMeta {
+    pub target: Target,
     pub base_index: u32,
     pub length: u32,
 }
@@ -100,65 +99,53 @@ impl std::ops::Index<InstrPtr> for Program {
 impl Program {
     pub fn compile(
         cmdss: &[Commands<(), ()>],
-        additional_vars: impl IntoIterator<Item = Variable>,
+        additional_targets: impl IntoIterator<Item = Target>,
         tuple_spaces: IndexMap<Variable, TupleSpace>,
         channels: IndexMap<Variable, Channel>,
-        arrays: IndexMap<Array, Vec<i32>>,
-        additional_arrs: impl IntoIterator<Item = Array>,
+        array_sizes: IndexMap<Array, u32>,
     ) -> Program {
-        let variables: Vec<_> = cmdss
+        let targets: Vec<Target> = cmdss
             .iter()
-            .flat_map(|cmds| {
-                cmds.fv().into_iter().filter_map(|t| match t {
-                    Target::Variable(var) => Some(var),
-                    Target::Array(_, _) => None,
-                })
-            })
-            .chain(additional_vars)
+            .flat_map(|cmds| cmds.fv())
+            .chain(additional_targets)
             .sorted()
             .dedup()
             .collect();
 
-        let arr_names: Vec<_> = cmdss
-            .iter()
-            .flat_map(|cmds| {
-                cmds.fv().into_iter().filter_map(|t| match t {
-                    Target::Variable(_) => None,
-                    Target::Array(arr, _) => Some(arr),
-                })
-            })
-            .dedup()
-            .collect();
+        let mut metas = Vec::new();
+        let mut current_index = 0u32;
 
-        let free_arrs: IndexMap<Array, Vec<i32>> = arr_names
-            .into_iter()
-            .chain(additional_arrs)
-            .filter(|arr| !arrays.contains_key(arr))
-            .map(|arr| (arr.clone(), vec![0]))
-            .collect();
+        for target in targets {
+            match target {
+                Target::Variable(v) => {
+                    metas.push(TargetMeta {
+                        target: Target::Variable(v),
+                        base_index: current_index,
+                        length: 1,
+                    });
+                    current_index += 1;
+                }
 
-        let all_arrs: Vec<_> = arrays.into_iter().chain(free_arrs).collect();
-
-        let mut current_index = variables.len() as u32;
-        let mut array_meta = Vec::new();
-
-        for (name, values) in all_arrs {
-            array_meta.push(ArrayMeta {
-                name,
-                base_index: current_index,
-                length: values.len() as u32,
-            });
-            current_index += values.len() as u32;
+                Target::Array(arr, _) => {
+                    let length = array_sizes.get(&arr).copied().unwrap_or(1);
+                    metas.push(TargetMeta {
+                        target: Target::Array(arr, ()),
+                        base_index: current_index,
+                        length,
+                    });
+                    current_index += length;
+                }
+            }
         }
 
         let mut p = Program {
-            variables,
-            arrays: array_meta,
+            targets: metas,
             instrs: Vec::new(),
             entry_points: Vec::new(),
             source_map: Vec::new(),
             tuple_spaces: tuple_spaces
                 .into_iter()
+                .sorted()
                 .map(|(var, ts)| TupleSpaceMeta {
                     name: var,
                     space_type: ts.space_type,
@@ -167,6 +154,7 @@ impl Program {
                 .collect(),
             channels: channels
                 .into_iter()
+                .sorted()
                 .map(|(var, ch)| ChannelMeta {
                     name: var,
                     size: ch.size,
@@ -194,12 +182,20 @@ impl Program {
         tuple_space_memory: Vec<Vec<Vec<Int>>>,
         channel_memory: Vec<Vec<Int>>,
     ) -> State {
-        let mut memory = self.variables.iter().map(var_init).collect::<Vec<_>>();
+        let mut memory = Vec::new();
 
-        for ArrayMeta { name, length, .. } in self.arrays.iter() {
-            let mut arr_values = arr_init(name);
-            arr_values.resize(*length as usize, 0);
-            memory.extend_from_slice(&arr_values);
+        for meta in &self.targets {
+            match &meta.target {
+                Target::Variable(v) => {
+                    memory.push(var_init(v));
+                }
+
+                Target::Array(arr, _) => {
+                    let mut values = arr_init(arr);
+                    values.resize(meta.length as usize, 0);
+                    memory.extend_from_slice(&values);
+                }
+            }
         }
 
         State {
@@ -210,26 +206,28 @@ impl Program {
         }
     }
 
-    pub fn variables(&self) -> impl Iterator<Item = &'_ Variable> {
-        self.variables.iter()
+    pub fn variables(&self) -> impl Iterator<Item = &Variable> + '_ {
+        self.targets.iter().filter_map(|meta| match &meta.target {
+            Target::Variable(v) => Some(v),
+            _ => None,
+        })
     }
 
-    fn variable_index(&self, name: &str) -> Option<u32> {
-        self.variables
-            .iter()
-            .position(|v| v.0 == name)
-            .map(|idx| idx as _)
+    pub fn arrays(&self) -> impl Iterator<Item = (&Array, u32, u32)> + '_ {
+        self.targets.iter().filter_map(|meta| match &meta.target {
+            Target::Array(arr, _) => Some((arr, meta.base_index, meta.length)),
+            _ => None,
+        })
     }
 
-    fn array_meta(&self, arr: &Array) -> Option<(u32, u32)> {
-        self.arrays
+    fn variable_index(&self, name: &Variable) -> Option<u32> {
+        self.targets
             .iter()
-            .find(|ArrayMeta { name, .. }| name == arr)
-            .map(
-                |ArrayMeta {
-                     base_index, length, ..
-                 }| (*base_index, *length),
-            )
+            .position(|meta| match &meta.target {
+                Target::Variable(v) => v == name,
+                _ => false,
+            })
+            .map(|idx| idx as u32)
     }
 
     fn tuple_space_index(&self, name: &str) -> Option<u32> {
@@ -352,21 +350,21 @@ impl Program {
                     },
                 );
             }
-            CommandKind::O(Operation::Put(target, args)) => {
-                let index = self.tuple_space_index(target.name()).unwrap();
+            CommandKind::O(Operation::Put(ts, args)) => {
+                let index = self.tuple_space_index(&ts.0).unwrap();
                 let tuple_max_size = self.tuple_spaces[index as usize].size.clone();
                 self.push(
                     Instr::Put(tuple_max_size, index, args.clone()),
                     Some(cmd.span),
                 );
             }
-            CommandKind::O(Operation::Get(target, args)) => {
-                let index = self.tuple_space_index(target.name()).unwrap();
+            CommandKind::O(Operation::Get(ts, args)) => {
+                let index = self.tuple_space_index(&ts.0).unwrap();
                 let tuple_type = self.tuple_spaces[index as usize].space_type.clone();
                 self.push(Instr::Get(tuple_type, index, args.clone()), Some(cmd.span));
             }
-            CommandKind::O(Operation::Query(target, args)) => {
-                let index = self.tuple_space_index(target.name()).unwrap();
+            CommandKind::O(Operation::Query(ts, args)) => {
+                let index = self.tuple_space_index(&ts.0).unwrap();
                 let tuple_type = self.tuple_spaces[index as usize].space_type.clone();
                 self.push(
                     Instr::Query(tuple_type, index, args.clone()),
@@ -374,13 +372,13 @@ impl Program {
                 );
             }
             CommandKind::Send(ch, e) => {
-                if let Some(index) = self.channel_index(ch.name()) {
+                if let Some(index) = self.channel_index(&ch.0) {
                     let size = self.channels[index as usize].size.clone();
                     self.push(Instr::Send(size, index, e.clone()), Some(cmd.span));
                 } else {
                     self.push(
                         Instr::SyncSend {
-                            channel: ch.name().to_string(),
+                            channel: ch.0.to_string(),
                             expr: e.clone(),
                         },
                         Some(cmd.span),
@@ -388,12 +386,12 @@ impl Program {
                 }
             }
             CommandKind::Receive(ch, target) => {
-                if let Some(ch_index) = self.channel_index(ch.name()) {
+                if let Some(ch_index) = self.channel_index(&ch.0) {
                     self.push(Instr::Receive(ch_index, target.clone()), Some(cmd.span));
                 } else {
                     self.push(
                         Instr::SyncReceive {
-                            channel: ch.name().to_string(),
+                            channel: ch.0.to_string(),
                             target: target.clone(),
                         },
                         Some(cmd.span),
@@ -403,7 +401,7 @@ impl Program {
             CommandKind::Broadcast(ch, k, e) => {
                 self.push(
                     Instr::Broadcast {
-                        channel: ch.name().to_string(),
+                        channel: ch.0.to_string(),
                         k: k.clone(),
                         expr: e.clone(),
                     },
@@ -413,7 +411,7 @@ impl Program {
             CommandKind::Gather(ch, k, arr, x) => {
                 self.push(
                     Instr::Gather {
-                        channel: ch.name().to_string(),
+                        channel: ch.0.to_string(),
                         k: k.clone(),
                         array: arr.clone(),
                         target: x.clone(),
@@ -446,6 +444,7 @@ pub enum StepError {
     HitOld,
     ArrayIndexNegative,
     ArrayIndexOutOfBounds,
+    SameArrayGather,
 }
 
 impl State {
@@ -502,7 +501,7 @@ impl State {
                             Instr::Branch { choices, .. } => {
                                 for (cg, t) in choices {
                                     if let CG::Receive(c2, target) = cg {
-                                        if c1 == c2.name() {
+                                        if *c1 == c2.0.to_string() {
                                             receivers.push((j, target.clone(), Some(*t)));
                                             counter += 1;
                                         }
@@ -516,7 +515,7 @@ impl State {
                         let mut new_state = self.clone();
                         for (j, target, branch_ptr) in receivers {
                             let index = match target {
-                                Target::Variable(var) => p.variable_index(&var.0).unwrap(),
+                                Target::Variable(var) => p.variable_index(&var).unwrap(),
                                 Target::Array(arr, idx) => self.array_index(&arr, &idx, p)?,
                             };
                             new_state.memory[index as usize] = value;
@@ -537,8 +536,20 @@ impl State {
                     array,
                     target,
                 } => {
-                    let (array_base, array_len) = p.array_meta(array).unwrap();
+                    if let Target::Array(arr, _) = target
+                        && arr == array
+                    {
+                        return Err(StepError::SameArrayGather);
+                    }
+
+                    let (array_base, array_len) = p
+                        .arrays()
+                        .find(|(a, _, _)| a == &array)
+                        .map(|(_, base, len)| (base, len))
+                        .unwrap();
+
                     let mut senders = Vec::new();
+
                     for j in 0..self.ptrs.len() {
                         if i == j {
                             continue;
@@ -551,7 +562,7 @@ impl State {
                             Instr::Branch { choices, .. } => {
                                 for (cg, t) in choices {
                                     if let CG::Send(c2, expr) = cg {
-                                        if c1 == c2.name() {
+                                        if *c1 == c2.0.to_string() {
                                             let value = expr.evaluate(p, self)?;
                                             senders.push((j, value, Some(*t)));
                                         }
@@ -581,7 +592,7 @@ impl State {
                             }
 
                             let index = match target {
-                                Target::Variable(var) => p.variable_index(&var.0).unwrap(),
+                                Target::Variable(var) => p.variable_index(&var).unwrap(),
                                 Target::Array(arr, idx) => self.array_index(&arr, &idx, p)?,
                             };
 
@@ -612,7 +623,7 @@ impl State {
                             if let Ok(value) = expr.evaluate(p, self) {
                                 let mut new_state = self.clone();
                                 let index = match target {
-                                    Target::Variable(var) => p.variable_index(&var.0).unwrap(),
+                                    Target::Variable(var) => p.variable_index(&var).unwrap(),
                                     Target::Array(arr, idx) => self.array_index(arr, idx, p)?,
                                 };
                                 new_state.memory[index as usize] = value;
@@ -630,7 +641,7 @@ impl State {
                                         if let Ok(value) = expr.evaluate(p, self) {
                                             let index = match t {
                                                 Target::Variable(var) => {
-                                                    p.variable_index(&var.0).unwrap()
+                                                    p.variable_index(&var).unwrap()
                                                 }
                                                 Target::Array(arr, idx) => {
                                                     self.array_index(arr, idx, p)?
@@ -650,11 +661,11 @@ impl State {
                     (Instr::SyncSend { channel: c1, expr }, Instr::Branch { choices: cj, .. }) => {
                         for (cgj, target_j) in cj {
                             if let CG::Receive(c2, t) = cgj {
-                                if c1 == c2.name() {
+                                if *c1 == c2.0.to_string() {
                                     if let Ok(value) = expr.evaluate(p, self) {
                                         let index = match t {
                                             Target::Variable(var) => {
-                                                p.variable_index(&var.0).unwrap()
+                                                p.variable_index(&var).unwrap()
                                             }
                                             Target::Array(arr, idx) => {
                                                 self.array_index(arr, idx, p)?
@@ -679,12 +690,12 @@ impl State {
                     ) => {
                         for (cgi, target_i) in ci {
                             if let CG::Send(c1, expr) = cgi {
-                                if c1.name() == c2 {
+                                if c1.0.to_string() == *c2 {
                                     if let Ok(value) = expr.evaluate(p, self) {
                                         let mut new_state = self.clone();
                                         let index = match target {
                                             Target::Variable(var) => {
-                                                p.variable_index(&var.0).unwrap()
+                                                p.variable_index(&var).unwrap()
                                             }
                                             Target::Array(arr, idx) => {
                                                 self.array_index(arr, idx, p)?
@@ -759,21 +770,28 @@ impl State {
         all_stuck_or_halted && any_stuck
     }
 
-    fn array_index(&self, arr: &Array, idx: &Box<AExpr>, p: &Program) -> Result<u32, StepError> {
-        let (base_index, length) = p.array_meta(arr).unwrap();
-        let idx = idx.evaluate(p, self)?;
-
+    fn array_index(
+        &self,
+        arr: &Array,
+        idx_expr: &Box<AExpr>,
+        p: &Program,
+    ) -> Result<u32, StepError> {
+        let idx = idx_expr.evaluate(p, self)?;
         if idx < 0 {
             return Err(StepError::ArrayIndexNegative);
         }
 
-        let idx_u32 = idx as u32;
+        let (base_index, length) = p
+            .arrays()
+            .find(|(a, _, _)| *a == arr)
+            .map(|(_, base, len)| (base, len))
+            .unwrap();
 
-        if idx_u32 >= length {
+        if idx as u32 >= length {
             return Err(StepError::ArrayIndexOutOfBounds);
         }
 
-        Ok(base_index + idx_u32)
+        Ok(base_index + idx as u32)
     }
 
     fn matches(&self, t: &Vec<i32>, fields: &Vec<Field>, p: &Program) -> Result<bool, StepError> {
@@ -816,7 +834,7 @@ impl State {
         for (v, f) in tuple.iter().zip(fields.iter()) {
             if let Field::Variable(t) = f {
                 let index = match t {
-                    Target::Variable(var) => p.variable_index(&var.0).unwrap(),
+                    Target::Variable(var) => p.variable_index(&var).unwrap(),
                     Target::Array(arr, idx) => self.array_index(arr, idx, p)?,
                 };
 
@@ -974,7 +992,7 @@ impl State {
     ) -> Vec<(Memory, Vec<Vec<Vec<Int>>>, Vec<Vec<Int>>)> {
         match expr {
             BExpr::OP(Operation::Get(t, f)) => {
-                let ts_index = p.tuple_space_index(t.name()).unwrap();
+                let ts_index = p.tuple_space_index(&t.0).unwrap();
                 let ts_type = p.tuple_spaces[ts_index as usize].space_type.clone();
                 self.match_tuple_space_type(&ts_type, &ts_index, f, p, &InstrPtr(0), true)
                     .map(|either| {
@@ -986,7 +1004,7 @@ impl State {
                     .unwrap_or_default()
             }
             BExpr::OP(Operation::Query(t, f)) => {
-                let ts_index = p.tuple_space_index(t.name()).unwrap();
+                let ts_index = p.tuple_space_index(&t.0).unwrap();
                 let ts_type = p.tuple_spaces[ts_index as usize].space_type.clone();
                 self.match_tuple_space_type(&ts_type, &ts_index, f, p, &InstrPtr(0), false)
                     .map(|either| {
@@ -998,7 +1016,7 @@ impl State {
                     .unwrap_or_default()
             }
             BExpr::OP(Operation::Put(t, args)) => {
-                let ts_index = p.tuple_space_index(t.name()).unwrap();
+                let ts_index = p.tuple_space_index(&t.0).unwrap();
                 let ts_meta = &p.tuple_spaces[ts_index as usize];
                 if let BufferSize::Finite(max) = ts_meta.size {
                     if self.tuple_spaces[ts_index as usize].len() >= max as usize {
@@ -1074,12 +1092,12 @@ impl State {
         match cg {
             CG::BoolExpression(expr) => Ok(self.eval_bool_guard(p, expr)),
             CG::Send(ch, expr) => {
-                if p.channel_index(ch.name()).is_none() {
+                if p.channel_index(&ch.0).is_none() {
                     return Ok(vec![]);
                 }
                 if let Ok(value) = expr.evaluate(p, self) {
                     let mut channels = self.channels.clone();
-                    let ch_index = p.channel_index(ch.name()).unwrap();
+                    let ch_index = p.channel_index(&ch.0).unwrap();
                     let buffer_size = p.channels[ch_index as usize].size.clone();
 
                     match buffer_size {
@@ -1108,14 +1126,14 @@ impl State {
                 Ok(vec![])
             }
             CG::Receive(ch, target) => {
-                if p.channel_index(ch.name()).is_none() {
+                if p.channel_index(&ch.0).is_none() {
                     return Ok(vec![]);
                 }
                 let mut channels = self.channels.clone();
                 let mut memory = self.memory.clone();
-                let ch_index = p.channel_index(ch.name()).unwrap();
+                let ch_index = p.channel_index(&ch.0).unwrap();
                 let index = match target {
-                    Target::Variable(var) => p.variable_index(&var.0).unwrap(),
+                    Target::Variable(var) => p.variable_index(&var).unwrap(),
                     Target::Array(arr, idx) => self.array_index(arr, idx, p)?,
                 };
 
@@ -1153,7 +1171,7 @@ impl State {
                 let mut memory = self.memory.clone();
 
                 let index = match target {
-                    Target::Variable(var) => p.variable_index(&var.0).unwrap(),
+                    Target::Variable(var) => p.variable_index(&var).unwrap(),
                     Target::Array(arr, idx) => self.array_index(arr, idx, p)?,
                 };
 
@@ -1273,7 +1291,7 @@ impl State {
                 let mut memory = self.memory.clone();
 
                 let index = match target {
-                    Target::Variable(var) => p.variable_index(&var.0).unwrap(),
+                    Target::Variable(var) => p.variable_index(&var).unwrap(),
                     Target::Array(arr, idx) => self.array_index(arr, idx, p)?,
                 };
 
@@ -1315,29 +1333,19 @@ impl fmt::Display for StateFormat<'_> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let mut parts = Vec::new();
 
-        let var_count = self.program.variables.len();
-        self.state
-            .memory
-            .iter()
-            .take(var_count)
-            .zip(&self.program.variables)
-            .for_each(|(value, var)| parts.push(format!("{var} = {value}")));
+        for (idx, target_meta) in self.program.targets.iter().enumerate() {
+            if let Target::Variable(var) = &target_meta.target {
+                let value = self.state.memory[idx];
+                parts.push(format!("{var} = {value}"));
+            }
+        }
 
-        for ArrayMeta {
-            name,
-            base_index,
-            length,
-        } in &self.program.arrays
-        {
-            let array_values: Vec<String> = self
-                .state
-                .memory
+        for (arr, base, len) in self.program.arrays() {
+            let array_values: Vec<String> = self.state.memory[base as usize..(base + len) as usize]
                 .iter()
-                .skip(*base_index as usize)
-                .take(*length as usize)
                 .map(|v| v.to_string())
                 .collect();
-            parts.push(format!("{name} = [{}]", array_values.join(", ")));
+            parts.push(format!("{arr} = [{}]", array_values.join(", ")));
         }
 
         for (ts_meta, ts_values) in self
@@ -1385,7 +1393,7 @@ impl AExpr {
             AExpr::Number(n) => *n,
             AExpr::Reference(r) => {
                 let index = match r {
-                    Target::Variable(var) => p.variable_index(&var.0).unwrap(),
+                    Target::Variable(var) => p.variable_index(&var).unwrap(),
                     Target::Array(arr, idx) => state.array_index(arr, idx, p)?,
                 };
                 state.memory[index as usize]
@@ -1494,13 +1502,13 @@ impl ChannelFormula {
         Ok(match self {
             ChannelFormula::ChannelHead(c, e) => {
                 let e = e.evaluate(p, state)?;
-                let index = p.channel_index(c.name()).unwrap();
+                let index = p.channel_index(&c.0).unwrap();
                 let v = state.channels[index as usize].first().unwrap();
                 e == *v
             }
             ChannelFormula::ChannelContains(c, e) => {
                 let e = e.evaluate(p, state)?;
-                let index = p.channel_index(c.name()).unwrap();
+                let index = p.channel_index(&c.0).unwrap();
                 state.channels[index as usize].contains(&e)
             }
         })
@@ -1533,19 +1541,19 @@ impl LTLFormula {
                 LTLExpression::Literal(format!("p{idx}").into())
             }
             LTLFormula::Operation(op) => {
-                let idx = if let Some(idx) = operations.iter().position(|x| x == op.as_ref()) {
+                let idx = if let Some(idx) = operations.iter().position(|x| x == op) {
                     idx
                 } else {
-                    operations.push(op.as_ref().clone());
+                    operations.push(op.clone());
                     operations.len() - 1
                 };
                 LTLExpression::Literal(format!("o{idx}").into())
             }
             LTLFormula::ChannelFormula(cf) => {
-                let idx = if let Some(idx) = channels.iter().position(|x| x == cf.as_ref()) {
+                let idx = if let Some(idx) = channels.iter().position(|x| x == cf) {
                     idx
                 } else {
-                    channels.push(cf.as_ref().clone());
+                    channels.push(cf.clone());
                     channels.len() - 1
                 };
                 LTLExpression::Literal(format!("c{idx}").into())

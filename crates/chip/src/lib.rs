@@ -7,5 +7,6 @@ pub mod interpreter;
 pub mod model_check;
 pub mod parse;
 pub mod triples;
+pub mod validate;
 
 pub use smtlib;

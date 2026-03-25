@@ -52,17 +52,17 @@ pub enum CommandKind<Pred, Inv> {
     Loop(Inv, Vec<Guard<Pred, Inv>>),
     LoopCG(Inv, Vec<CommunicationGuard<Pred, Inv>>),
     O(Operation),
-    Send(Target<Box<AExpr>>, AExpr),
-    Receive(Target<Box<AExpr>>, Target<Box<AExpr>>),
-    Broadcast(Target<Box<AExpr>>, Int, AExpr),
-    Gather(Target<Box<AExpr>>, Int, Array, Target<Box<AExpr>>),
+    Send(Variable, AExpr),
+    Receive(Variable, Target<Box<AExpr>>),
+    Broadcast(Variable, Int, AExpr),
+    Gather(Variable, Int, Array, Target<Box<AExpr>>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Operation {
-    Put(Target<Box<AExpr>>, Vec<AExpr>),
-    Get(Target<Box<AExpr>>, Vec<Field>),
-    Query(Target<Box<AExpr>>, Vec<Field>),
+    Put(Variable, Vec<AExpr>),
+    Get(Variable, Vec<Field>),
+    Query(Variable, Vec<Field>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -89,8 +89,8 @@ pub struct CommunicationGuard<Pred, Inv> {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum CG {
     BoolExpression(BExpr),
-    Send(Target<Box<AExpr>>, AExpr),
-    Receive(Target<Box<AExpr>>, Target<Box<AExpr>>),
+    Send(Variable, AExpr),
+    Receive(Variable, Target<Box<AExpr>>),
 }
 
 pub type Int = i32;
@@ -183,8 +183,8 @@ pub enum LTLFormula {
     Bool(bool),
     Locator(Locator),
     Rel(AExpr, RelOp, AExpr),
-    Operation(Box<Operation>),
-    ChannelFormula(Box<ChannelFormula>),
+    Operation(Operation),
+    ChannelFormula(ChannelFormula),
     Not(Box<LTLFormula>),
     And(Box<LTLFormula>, Box<LTLFormula>),
     Or(Box<LTLFormula>, Box<LTLFormula>),
@@ -197,8 +197,8 @@ pub enum LTLFormula {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ChannelFormula {
-    ChannelHead(Target<Box<AExpr>>, AExpr),
-    ChannelContains(Target<Box<AExpr>>, AExpr),
+    ChannelHead(Variable, AExpr),
+    ChannelContains(Variable, AExpr),
 }
 
 pub type LTLProperty = (SourceSpan, LTLFormula);
@@ -239,10 +239,10 @@ pub enum AssignmentKind {
 }
 
 pub struct LTLProgram {
-    pub initial: IndexMap<Variable, i32>,
-    pub arrays: IndexMap<Array, Vec<i32>>,
-    pub tuple_spaces: IndexMap<Variable, TupleSpace>,
-    pub channels: IndexMap<Variable, Channel>,
+    pub init_variables: IndexMap<Variable, i32>,
+    pub init_arrays: IndexMap<Array, Vec<i32>>,
+    pub init_tuple_spaces: IndexMap<Variable, TupleSpace>,
+    pub init_channels: IndexMap<Variable, Channel>,
     pub commands: Vec<Commands<(), ()>>,
     pub properties: Vec<LTLProperty>,
 }

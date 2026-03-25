@@ -55,34 +55,33 @@ impl ReachableStates {
                 .properties
                 .iter()
                 .flat_map(|(_, property)| property.fv())
-                .filter_map(|t| match t {
-                    Target::Variable(v) => Some(v),
-                    _ => None,
-                })
-                .chain(ltl_program.initial.keys().cloned()),
-            ltl_program.tuple_spaces.clone(),
-            ltl_program.channels.clone(),
-            ltl_program.arrays.clone(),
+                .chain(ltl_program.init_variables.keys().cloned().map(Target::Variable))
+                .chain(
+                    ltl_program
+                        .init_arrays
+                        .keys()
+                        .cloned()
+                        .map(|arr| Target::Array(arr, ())),
+                ),
+            ltl_program.init_tuple_spaces.clone(),
+            ltl_program.init_channels.clone(),
             ltl_program
-                .properties
+                .init_arrays
                 .iter()
-                .flat_map(|(_, property)| property.fv())
-                .filter_map(|t| match t {
-                    Target::Array(arr, _) => Some(arr),
-                    _ => None,
-                }),
+                .map(|(arr, vals)| (arr.clone(), vals.len() as u32))
+                .collect(),
         );
         let state = program.initial_state(
-            |var| ltl_program.initial.get(var).copied().unwrap_or_default(),
-            |arr| ltl_program.arrays.get(arr).cloned().unwrap_or_default(),
+            |var| ltl_program.init_variables.get(var).copied().unwrap_or_default(),
+            |arr| ltl_program.init_arrays.get(arr).cloned().unwrap_or_default(),
             ltl_program
-                .tuple_spaces
+                .init_tuple_spaces
                 .clone()
                 .into_iter()
                 .map(|(_, ts)| ts.space.clone())
                 .collect(),
             ltl_program
-                .channels
+                .init_channels
                 .clone()
                 .into_iter()
                 .map(|(_, ch)| ch.channel.clone())
