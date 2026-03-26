@@ -35,9 +35,9 @@
     {
       left: 'Operation',
       right: [
-        ['Ts', '".put"', '"("', 'Tupple', '")"'],
-        ['Ts', '".get"', '"("', 'TuppleFind', '")"'],
-        ['Ts', '".query"', '"("', 'TuppleFind', '")"'],
+        ['Ts', '".put"', '"("', 'Tuple', '")"'],
+        ['Ts', '".get"', '"("', 'TupleFind', '")"'],
+        ['Ts', '".query"', '"("', 'TupleFind', '")"'],
       ],
     },
     {
@@ -84,9 +84,9 @@
         ['"("', 'BExpr', '")"'],
         ['BExpr', '"&"', 'BExpr'],
         ['BExpr', '"|"', 'BExpr'],
-        ['Ts', '".putP"', '"("', 'Tupple', '")"'],
-        ['Ts', '".getP"', '"("', 'TuppleFind', '")"'],
-        ['Ts', '".queryP"', '"("', 'TuppleFind', '")"'],
+        ['Ts', '".putP"', '"("', 'Tuple', '")"'],
+        ['Ts', '".getP"', '"("', 'TupleFind', '")"'],
+        ['Ts', '".queryP"', '"("', 'TupleFind', '")"'],
       ],
     },
     {
@@ -101,16 +101,16 @@
       ],
     },
     {
-      left: 'Tupple',
-      right: [['AExpr'], ['AExpr', '","', 'Tupple']],
+      left: 'Tuple',
+      right: [['AExpr'], ['AExpr', '","', 'Tuple']],
     },
     {
       left: 'Format',
       right: [['AExpr'], ['"\\_"'], ['"?"', 'Var'], ['"?"', 'Arr', '"["', 'AExpr', '"]"']],
     },
     {
-      left: 'TuppleFind',
-      right: [['Format'], ['Format', '","', 'TuppleFind']],
+      left: 'TupleFind',
+      right: [['Format'], ['Format', '","', 'TupleFind']],
     },
     {
       left: 'RelOp',
