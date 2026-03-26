@@ -1,0 +1,11 @@
+// query operation using variable and queue type tuple space 
+> ts = (Q, INF, {(1),(1,2),(3,4),(2), (3)})
+
+ts.query(?x)
+
+check F !(ts.getP(?x) & ts.getP(?x,?y))
+check F !(ts.queryP(?x) & ts.queryP(?x,?y))
+check F ts.queryP(1)
+check X ts.queryP(1)
+check X x = 1
+check F terminated

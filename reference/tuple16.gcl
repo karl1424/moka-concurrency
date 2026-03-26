@@ -1,0 +1,10 @@
+// get operation using variable and stack type tuple space 
+> ts = (S, INF, {(1),(1,2),(2),(3,4),(3)})
+
+ts.get(?x)
+
+check F ts.getP(3)
+check X !ts.getP(?x)
+check X ts.getP(3,4)
+check F x=3
+check F terminated

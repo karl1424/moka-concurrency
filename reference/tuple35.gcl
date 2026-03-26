@@ -1,0 +1,9 @@
+//getP operation in do
+> ts = (R, INF, {(1,1), (1,2),(1,3)})
+
+do ts.getP(1, ?x) -> z := z + 1
+od
+
+check F x = 3
+check F z = 3 
+check F terminated

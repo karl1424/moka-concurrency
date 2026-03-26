@@ -1,0 +1,9 @@
+//Sync send receive Stuck
+> c = (0)
+
+c!1;
+c?x
+
+check F stuck
+check G x = 0
+check G x != 1

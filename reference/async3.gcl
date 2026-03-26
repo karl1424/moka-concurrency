@@ -1,0 +1,14 @@
+//Channel receive loop
+> x = 0, z = 0, c = (3, (1, 2, 1))
+loop 
+c?x -> z := z + 1
+pool
+check z = 0 & x = 0 & c??1 & c??2
+check F x = 1 & F x = 2 & F x != 3
+check F z = 1 & F z = 2 & F z = 3 & z!= 4
+check F G (z = 3)
+check !c?2
+check F (!c?1 & c?2)
+check F G (!c?1 & !c?2)
+check F stuck
+check G !terminated

@@ -1,5 +1,0 @@
-> x = 10
-do
-  x > 0 -> x := x - 1
-od
-check F x = -1

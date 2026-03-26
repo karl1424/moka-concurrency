@@ -1,0 +1,12 @@
+//more than the required amount of senders, not enough space in array
+> c = (0), A = [0]
+par
+c??1 A x
+[]
+c!1
+[]
+c!2
+rap
+
+check F (x = 1 & A[0] = 1) | F (x = 1 & A[0] = 2)
+check F terminated

@@ -1,0 +1,10 @@
+// get operation using variable and queue type tuple space 
+> ts = (Q, INF, {(1),(1,2),(2),(3,4),(3)})
+
+ts.get(?x)
+
+check F ts.getP(1)
+check X !ts.getP(?x)
+check X ts.getP(1,2)
+check F x=1
+check F terminated

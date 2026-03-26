@@ -1,0 +1,9 @@
+//getP operation in if statement using fifo type tuple space
+> ts = (F, INF, {(1),(1,2),(3,4),(2), (3)})
+
+if ts.getP(?x,?y) -> skip fi
+
+check F ts.getP(1)
+check X ts.getP(3,4)
+check X (x = 1 & y = 2)
+check F terminated

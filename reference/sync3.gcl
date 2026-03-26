@@ -1,0 +1,16 @@
+//Sync loop receive
+> c = (0)
+par
+
+loop
+c?x -> y := y+1
+pool
+[]
+c!2;
+c!1
+rap
+
+check F y = 0 & F y = 1 & F y = 2
+check G y != 3
+check X x = 2 & X X X x = 1
+check F stuck

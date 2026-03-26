@@ -1,0 +1,9 @@
+//getP operation in loop using lifo type tuple space 
+> ts = (L, INF, {(1,1), (3),(1,2),(1,3)})
+
+loop ts.getP(1, ?x) -> z := z + 1
+pool
+
+check F x = 2 
+check F z = 3 
+check F stuck 

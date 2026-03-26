@@ -1,0 +1,14 @@
+//Sync branch
+> c = (0)
+par
+c?x
+[]
+c?y
+[]
+c!1
+[]
+c!2
+rap
+
+check F terminated
+check F (x = 1 & y = 2) | F (x = 2 & y = 1)

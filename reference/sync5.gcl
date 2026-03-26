@@ -1,0 +1,13 @@
+//Sync send if
+> c = (0)
+par
+if
+c!1 -> y := 1
+fi;
+z := 1
+[]
+c?x
+rap
+
+check F terminated
+check F x = 1 & F y = 1 & F z = 1

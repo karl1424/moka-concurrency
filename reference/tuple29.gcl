@@ -1,0 +1,9 @@
+//getP operation in if statement using queue type tuple space
+> ts = (Q, INF, {(1),(1,2),(3,4),(2), (3)})
+
+if ts.getP(?x) -> skip fi
+
+check F ts.getP(1)
+check X ts.getP(1,2)
+check X x = 1
+check F terminated

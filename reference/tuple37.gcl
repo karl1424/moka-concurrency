@@ -1,0 +1,9 @@
+//getP operation in do using FIFO type tuple space that contains unmatching elements
+> ts = (F, INF, {(1,1), (3),(1,2),(1,3)})
+
+do ts.getP(1, ?x) -> z := z + 1
+od
+
+check F x = 2 
+check F z = 3 
+check F terminated

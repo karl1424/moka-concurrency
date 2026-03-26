@@ -1,0 +1,8 @@
+// put operation using a tuple space with length 1 and buffer size exceeded
+> ts = (R, 1, {})
+
+ts.put(1);
+ts.put(1)
+
+check F stuck
+check X ts.getP(1)

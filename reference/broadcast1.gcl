@@ -1,0 +1,11 @@
+//not enough receivers
+> c = (0), x = 0
+par
+c!!2 2
+[]
+c?x
+rap
+
+check G x = 0
+check ! F x = 2
+check F stuck

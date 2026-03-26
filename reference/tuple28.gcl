@@ -1,0 +1,9 @@
+//getP operation in if statement using variable
+> ts = (R, INF, {(1),(1,2),(3,4),(2), (3)})
+
+if ts.getP(?x) -> skip fi
+
+check F ts.getP(1)
+check X (ts.getP(1,2) | ts.getP(3,4) | ts.getP(2) | ts.getP(3))
+check X (x = 1 | x = 2 | x = 3)
+check F terminated

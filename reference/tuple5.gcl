@@ -1,0 +1,8 @@
+// Initialization using LIFO type 
+> ts = (L, INF, {(1,2),(3,4),(3)})
+skip
+
+check G ts.getP(3,4)
+check G ts.getP(3)
+check G ts.getP(1,2)
+check F terminated

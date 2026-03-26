@@ -1,0 +1,12 @@
+//using the same array
+> c = (0), A = [0,0], x = 0
+par
+c??2 A A[0]
+[]
+c!1
+[]
+c!2
+rap
+
+check G (x = 0 & A[0] = 0 & A[1] = 0)
+check F !terminated

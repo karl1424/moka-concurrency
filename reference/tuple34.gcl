@@ -1,0 +1,8 @@
+//putP operation in loop
+> ts = (R, 3, {})
+
+loop ts.putP(1) -> z := z + 1
+pool
+
+check F z = 3 
+check F stuck

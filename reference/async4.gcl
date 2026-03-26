@@ -1,0 +1,15 @@
+//Channel send loop
+> x = 1, z = 0, c = (3, ())
+loop 
+c!x -> z := z + 1; x := x + 1
+pool
+check z = 0 & x = 1 & !c??1 & !c??2 & !c??3
+check F c??1 & F c??2 & F c??3
+check F x = 2 & F x = 3 & F x = 4 & x != 5
+check F z = 1 & F z = 2 & F z = 3 & z != 4
+check F G (z = 3)
+check X c??1 & z = 0 & F z = 1
+check X X X (!c??2 & F c??1 & (X F z = 2))
+check F G (c??1 & c??2 & c??3)
+check F stuck
+check G !terminated

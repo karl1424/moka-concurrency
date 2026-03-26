@@ -1,0 +1,10 @@
+//Sync send receive
+> c = (0)
+par
+c!1
+[]
+c?x
+rap
+
+check F terminated
+check F x = 1

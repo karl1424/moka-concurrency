@@ -1,0 +1,10 @@
+//Successful array assignment test
+> A = [1,2,3]
+A[0] := 2;
+A[1] := 3
+
+check A[0] = 1 & A[1] = 2
+check X (A[0] = 2 & A[1] = 2)
+check X X (A[0] = 2 & A[1] = 3)
+check G A[2] = 3
+check F terminated

@@ -1,0 +1,9 @@
+// Initialization using stack type 
+> ts = (S, INF, {(1,2),(3,4)})
+skip
+
+check G ts.getP(3,4)
+check F ts.queryP(3,4)
+check G !ts.getP(1,2)
+check G !ts.getP(1)
+check F terminated

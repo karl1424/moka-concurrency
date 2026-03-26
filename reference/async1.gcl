@@ -1,0 +1,11 @@
+//Channel initialization
+> c = (3, (4, 5, 6))
+c?x;
+c?y;
+c?z
+check x = 0 & y = 0 & z = 0 & c??5 & c??4 & c??6
+check F x = 4 & F y = 5 & F z = 6
+check c?4 & ! c?5 & X c?5 
+check X G (x = 4 & ! c??4)
+check X X y = 5
+check F terminated

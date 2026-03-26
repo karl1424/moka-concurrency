@@ -1,0 +1,13 @@
+//Sync receive if stuck
+> c = (0)
+par
+if
+c?x -> y := 1
+fi;
+z := 1
+[]
+skip
+rap
+
+check F stuck
+check ! (F x = 1 & F y = 1 & F z = 1)

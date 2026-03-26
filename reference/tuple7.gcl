@@ -1,0 +1,9 @@
+// put operation using a tuple space with length 2
+> ts = (R, 2, {})
+
+ts.put(1);
+ts.put(1,2)
+
+check F ts.queryP(1)
+check F ts.queryP(1,2)
+check F terminated

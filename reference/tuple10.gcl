@@ -1,0 +1,8 @@
+// get operation with the unmatching element
+> ts = (R, 1, {(1)})
+
+ts.get(1,2)
+
+check G ts.getP(1)
+check G !ts.getP(1,2)
+check F stuck

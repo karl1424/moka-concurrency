@@ -1,0 +1,9 @@
+// query operation using variable and random type tuple space 
+> ts = (R, INF, {(1),(1,2),(3,4),(2), (3)})
+
+ts.query(?x)
+
+check F (ts.getP(?x) & ts.getP(?x,?y))
+check F (ts.queryP(?x) & ts.queryP(?x,?y))
+check X (x=1 | x=2 | x=3)
+check F terminated

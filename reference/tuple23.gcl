@@ -1,0 +1,11 @@
+// query operation using variable and stack type tuple space 
+> ts = (S, INF, {(1),(1,2),(3,4),(2), (3)})
+
+ts.query(?x)
+
+check F !(ts.getP(?x) & ts.getP(?x,?y))
+check F !(ts.queryP(?x) & ts.queryP(?x,?y))
+check F ts.queryP(3)
+check X ts.queryP(3)
+check X x = 3
+check F terminated

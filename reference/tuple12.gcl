@@ -1,0 +1,9 @@
+// get operation using variable and random type tuple space
+> ts = (R, INF, {(1),(2),(3)})
+
+ts.get(?x)
+
+check F ts.getP(1) & ts.getP(2) & ts.getP(3)
+check X ts.getP(1) | ts.getP(2) | ts.getP(3)
+check F (x = 1 | x = 2 | x = 3)
+check F terminated

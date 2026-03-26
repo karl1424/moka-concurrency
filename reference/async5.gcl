@@ -1,0 +1,10 @@
+//Channel receive If
+> x = 0, z = 0, c = (3, (1, 2, 1))
+if 
+c?x -> z := z + 1 
+fi
+check z = 0 & x = 0 & c??1 & c??2
+check F x = 1 | F x = 2
+check F z = 1
+check !G (z = 2)
+check F terminated

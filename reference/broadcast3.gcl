@@ -1,0 +1,14 @@
+//more than the required amount of receivers
+> c = (0)
+par
+c!!2 2
+[]
+c?x
+[]
+c?y
+[]
+c?z
+rap
+
+check F (x = 2 & y = 2 & z = 2)
+check F terminated

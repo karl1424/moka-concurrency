@@ -1,0 +1,12 @@
+//exactly the required amount of senders
+> c = (0), A = [0,0], x = 0
+par
+c??2 A x
+[]
+c!1
+[]
+c!2
+rap
+
+check F (x = 2 & A[0] = 1 & A[1] = 2) | F (x = 2 & A[0] = 2 & A[1] = 1)
+check F terminated
