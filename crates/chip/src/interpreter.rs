@@ -1503,8 +1503,7 @@ impl ChannelFormula {
             ChannelFormula::ChannelHead(c, e) => {
                 let e = e.evaluate(p, state)?;
                 let index = p.channel_index(&c.0).unwrap();
-                let v = state.channels[index as usize].first().unwrap();
-                e == *v
+                state.channels[index as usize].first().map_or(false, |v| e == *v)
             }
             ChannelFormula::ChannelContains(c, e) => {
                 let e = e.evaluate(p, state)?;
