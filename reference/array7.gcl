@@ -1,4 +1,3 @@
-//Expression using array
 > A = [1,2,3], x = 0
 x := A[1] + A[1 * 2]
 
@@ -6,3 +5,5 @@ check G (A[0] = 1 & A[1] = 2 & A[2] = 3)
 check x = 0
 check X x = 5
 check F terminated
+
+//Expression using array

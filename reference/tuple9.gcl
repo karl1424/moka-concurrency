@@ -1,7 +1,8 @@
-// get operation with the matching element
 > ts = (R, 1, {(1)})
 
 ts.get(1)
 
 check X !ts.getP(1)
 check F terminated
+
+// get operation with the matching element

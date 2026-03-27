@@ -1,4 +1,3 @@
-//Channel initialization
 > c = (3, (4, 5, 6))
 c?x;
 c?y;
@@ -9,3 +8,5 @@ check c?4 & ! c?5 & X c?5
 check X G (x = 4 & ! c??4)
 check X X y = 5
 check F terminated
+
+//Channel initialization

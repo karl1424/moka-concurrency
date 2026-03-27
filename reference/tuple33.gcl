@@ -1,4 +1,3 @@
-//putP operation in do 
 > ts = (R, 3, {})
 
 do ts.putP(1) -> z := z + 1
@@ -6,3 +5,5 @@ od
 
 check F z = 3 
 check F terminated
+
+//putP operation in do

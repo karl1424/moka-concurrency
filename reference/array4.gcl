@@ -1,4 +1,3 @@
-//Array assignment in do od
 > A = [0,0,0], i = 0
 do i < 3 ->
     A[i] := i;
@@ -9,3 +8,5 @@ check A[0] = 0 & A[1] = 0 & A[2] = 0 & i = 0
 check F i = 3 & G i != 4
 check F (A[0] = 0 & A[1] = 1 & A[2] = 0)
 check F terminated
+
+//Array assignment in do od

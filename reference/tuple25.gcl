@@ -1,4 +1,3 @@
-// query operation using variable and LIFO type tuple space 
 > ts = (L, INF, {(1),(1,2),(3,4),(2), (3)})
 
 ts.query(?x,?y)
@@ -7,3 +6,5 @@ check F ts.getP(?x) & ts.getP(?x,?y)
 check F ts.queryP(?x) & ts.queryP(?x,?y)
 check X (x = 3 & y = 4)
 check F terminated
+
+// query operation using variable and LIFO type tuple space 

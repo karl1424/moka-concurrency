@@ -1,4 +1,3 @@
-//Channel Send
 > c = (3, ())
 c!7;
 c!8;
@@ -8,3 +7,5 @@ check !G c??7 & F c??7 & F c??8 & F c??9
 check X X X G (c??7 & c??8 & c??9)
 check X G (c??7 & F c??8 & F c??9)
 check F terminated
+
+//Channel Send

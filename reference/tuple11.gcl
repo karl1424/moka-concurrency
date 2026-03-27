@@ -1,4 +1,3 @@
-// get operation using variable
 > ts = (R, 1, {(1)})
 
 ts.get(?x)
@@ -6,3 +5,5 @@ ts.get(?x)
 check F x = 1
 check X !ts.getP(1)
 check F terminated
+
+// get operation using variable

@@ -1,7 +1,8 @@
-//putP operation in if statement
 > ts = (R, INF, {})
 
 if ts.putP(1) -> skip fi
 
 check F ts.getP(1)
 check F terminated
+
+//putP operation in if statement

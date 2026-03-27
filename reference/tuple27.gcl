@@ -1,4 +1,3 @@
-//getP operation in if statement
 > ts = (R, INF, {(1),(1,2),(3,4),(2), (3)})
 
 if ts.getP(1) -> skip fi
@@ -6,3 +5,5 @@ if ts.getP(1) -> skip fi
 check F ts.getP(1)
 check X (ts.getP(1,2) & ts.getP(3,4) & ts.getP(2) & ts.getP(3))
 check F terminated
+
+//getP operation in if statement

@@ -1,4 +1,3 @@
-//Sync receive if stuck
 > c = (0)
 par
 if
@@ -11,3 +10,5 @@ rap
 
 check F stuck
 check ! (F x = 1 & F y = 1 & F z = 1)
+
+//Sync receive if stuck

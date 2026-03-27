@@ -1,6 +1,7 @@
-//Array memory initialization test
 > A = [1,2,3]
 skip
 
 check G (A[0] = 1 & A[1] = 2 & A[2] = 3)
 check F terminated
+
+//Array memory initialization test

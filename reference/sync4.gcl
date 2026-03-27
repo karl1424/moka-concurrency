@@ -1,4 +1,3 @@
-//Sync loop send
 > c = (0)
 par
 loop
@@ -13,3 +12,5 @@ check F y = 0 & F y = 1 & F y = 2
 check G y != 3 & G x != 2
 check x = 0 & X X X x = 1
 check F stuck
+
+//Sync loop send

@@ -1,7 +1,8 @@
-//Non successful array assignment test
 > A = [1,2,3]
 A[-1] := 2;
 A[4] := 2
 
 check A[0] = 1 & A[1] = 2 & A[2] = 3
 check F !terminated
+
+//Non successful array assignment test
