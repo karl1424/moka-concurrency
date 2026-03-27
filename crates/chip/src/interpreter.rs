@@ -180,27 +180,29 @@ impl Program {
         tuple_space_memory: Vec<Vec<Vec<Int>>>,
         channel_memory: Vec<Vec<Int>>,
     ) -> State {
-        let mut memory = Vec::new();
+        let mut data = Vec::new();
 
         for meta in &self.targets {
             match &meta.target {
                 Target::Variable(v) => {
-                    memory.push(var_init(v));
+                    data.push(var_init(v));
                 }
 
                 Target::Array(arr, _) => {
                     let mut values = arr_init(arr);
                     values.resize(meta.length as usize, 0);
-                    memory.extend_from_slice(&values);
+                    data.extend_from_slice(&values);
                 }
             }
         }
 
         State {
             ptrs: self.entry_points.clone(),
-            memory,
-            tuple_spaces: tuple_space_memory,
-            channels: channel_memory,
+            memory: Memory {
+                data,
+                tuple_spaces: tuple_space_memory,
+                channels: channel_memory,
+            },
         }
     }
 
@@ -421,14 +423,17 @@ impl Program {
     }
 }
 
-type Memory = Vec<i32>;
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Memory {
+    data: Vec<i32>,
+    tuple_spaces: Vec<Vec<Vec<Int>>>,
+    channels: Vec<Vec<Int>>,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct State {
     ptrs: Vec<InstrPtr>,
     memory: Memory,
-    tuple_spaces: Vec<Vec<Vec<Int>>>,
-    channels: Vec<Vec<Int>>,
 }
 
 #[derive(Debug)]
@@ -516,7 +521,7 @@ impl State {
                                 Target::Variable(var) => p.variable_index(&var).unwrap(),
                                 Target::Array(arr, idx) => self.array_index(&arr, &idx, p)?,
                             };
-                            new_state.memory[index as usize] = value;
+                            new_state.memory.data[index as usize] = value;
 
                             if let Some(ptr) = branch_ptr {
                                 new_state.ptrs[j] = ptr;
@@ -579,7 +584,7 @@ impl State {
                                 perm.clone().into_iter().enumerate()
                             {
                                 if idx < array_len as usize {
-                                    new_state.memory[array_base as usize + idx] = *value;
+                                    new_state.memory.data[array_base as usize + idx] = *value;
                                 }
 
                                 if let Some(ptr) = branch_ptr {
@@ -594,7 +599,7 @@ impl State {
                                 Target::Array(arr, idx) => self.array_index(&arr, &idx, p)?,
                             };
 
-                            new_state.memory[index as usize] =
+                            new_state.memory.data[index as usize] =
                                 perm.len().min(array_len as usize) as i32;
 
                             new_state.ptrs[i] = self.ptrs[i].bump();
@@ -624,7 +629,7 @@ impl State {
                                     Target::Variable(var) => p.variable_index(&var).unwrap(),
                                     Target::Array(arr, idx) => self.array_index(arr, idx, p)?,
                                 };
-                                new_state.memory[index as usize] = value;
+                                new_state.memory.data[index as usize] = value;
                                 new_state.ptrs[i] = new_state.ptrs[i].bump();
                                 new_state.ptrs[j] = new_state.ptrs[j].bump();
                                 transitions.push(new_state);
@@ -646,7 +651,7 @@ impl State {
                                                 }
                                             };
                                             let mut new_state = self.clone();
-                                            new_state.memory[index as usize] = value;
+                                            new_state.memory.data[index as usize] = value;
                                             new_state.ptrs[i] = *target_i;
                                             new_state.ptrs[j] = *target_j;
                                             transitions.push(new_state);
@@ -670,7 +675,7 @@ impl State {
                                             }
                                         };
                                         let mut new_state = self.clone();
-                                        new_state.memory[index as usize] = value;
+                                        new_state.memory.data[index as usize] = value;
                                         new_state.ptrs[i] = new_state.ptrs[i].bump();
                                         new_state.ptrs[j] = *target_j;
                                         transitions.push(new_state);
@@ -699,7 +704,7 @@ impl State {
                                                 self.array_index(arr, idx, p)?
                                             }
                                         };
-                                        new_state.memory[index as usize] = value;
+                                        new_state.memory.data[index as usize] = value;
                                         new_state.ptrs[i] = *target_i;
                                         new_state.ptrs[j] = new_state.ptrs[j].bump();
                                         transitions.push(new_state);
@@ -733,7 +738,7 @@ impl State {
             .filter_map(|ptr| p.source_map[ptr.0 as usize])
     }
     pub fn variables<'a>(&'a self, p: &'a Program) -> impl Iterator<Item = (&'a Variable, i32)> {
-        p.variables().zip(self.memory.iter().copied())
+        p.variables().zip(self.memory.data.iter().copied())
     }
     fn step_exe<'a>(
         &'a self,
@@ -742,15 +747,10 @@ impl State {
     ) -> Result<impl Iterator<Item = State> + 'a, StepError> {
         Ok(self
             .step_at(p, self.ptrs[execution])?
-            .map(move |(mem, tuple_spaces, channels, ptr)| {
+            .map(move |(mem, ptr)| {
                 let mut ptrs = self.ptrs.clone();
                 ptrs[execution] = ptr;
-                State {
-                    ptrs,
-                    memory: mem,
-                    tuple_spaces,
-                    channels,
-                }
+                State { ptrs, memory: mem }
             }))
     }
     pub fn is_terminated(&self, p: &Program) -> bool {
@@ -815,13 +815,13 @@ impl State {
         &self,
         pos: usize,
         fields: &Vec<Field>,
-        memory: Vec<i32>,
+        data: Vec<i32>,
         tuple_spaces: Vec<Vec<Vec<i32>>>,
         ts_index: &u32,
         p: &Program,
         remove: bool,
-    ) -> Result<(Memory, Vec<Vec<Vec<i32>>>), StepError> {
-        let mut mem_copy = memory.clone();
+    ) -> Result<(Vec<i32>, Vec<Vec<Vec<i32>>>), StepError> {
+        let mut data_copy = data.clone();
         let mut ts_copy = tuple_spaces.clone();
 
         let tuple = if remove {
@@ -836,11 +836,11 @@ impl State {
                     Target::Array(arr, idx) => self.array_index(arr, idx, p)?,
                 };
 
-                mem_copy[index as usize] = *v;
+                data_copy[index as usize] = *v;
             }
         }
 
-        Ok((mem_copy, ts_copy))
+        Ok((data_copy, ts_copy))
     }
 
     fn match_tuple_space_type(
@@ -852,14 +852,11 @@ impl State {
         ptr: &InstrPtr,
         remove: bool,
     ) -> Result<
-        Either<
-            std::array::IntoIter<(Memory, Vec<Vec<Vec<Int>>>, Vec<Vec<Int>>, InstrPtr), 1>,
-            std::vec::IntoIter<(Memory, Vec<Vec<Vec<Int>>>, Vec<Vec<Int>>, InstrPtr)>,
-        >,
+        Either<std::array::IntoIter<(Memory, InstrPtr), 1>, std::vec::IntoIter<(Memory, InstrPtr)>>,
         StepError,
     > {
-        let tuple_spaces = self.tuple_spaces.clone();
-        let memory = self.memory.clone();
+        let tuple_spaces = self.memory.tuple_spaces.clone();
+        let data = self.memory.data.clone();
 
         match ts_type {
             TupleSpaceType::Random => {
@@ -867,17 +864,24 @@ impl State {
 
                 for (pos, t) in tuple_spaces[*ts_index as usize].iter().enumerate() {
                     if self.matches(t, fields, p)? {
-                        let (mem_copy, ts_copy) = self.update_mem(
+                        let (data_copy, ts_copy) = self.update_mem(
                             pos,
                             fields,
-                            memory.clone(),
+                            data.clone(),
                             tuple_spaces.clone(),
                             ts_index,
                             p,
                             remove,
                         )?;
 
-                        results.push((mem_copy, ts_copy, self.channels.clone(), ptr.bump()));
+                        results.push((
+                            Memory {
+                                data: data_copy,
+                                tuple_spaces: ts_copy,
+                                channels: self.memory.channels.clone(),
+                            },
+                            ptr.bump(),
+                        ));
                     }
                 }
 
@@ -898,17 +902,25 @@ impl State {
                 }
 
                 if let Some(pos) = found_pos {
-                    let (new_mem, new_ts) = self.update_mem(
+                    let (new_data, new_ts) = self.update_mem(
                         pos,
                         fields,
-                        memory.clone(),
+                        data.clone(),
                         tuple_spaces.clone(),
                         ts_index,
                         p,
                         remove,
                     )?;
                     Ok(Either::Left(
-                        [(new_mem, new_ts, self.channels.clone(), ptr.bump())].into_iter(),
+                        [(
+                            Memory {
+                                data: new_data,
+                                tuple_spaces: new_ts,
+                                channels: self.memory.channels.clone(),
+                            },
+                            ptr.bump(),
+                        )]
+                        .into_iter(),
                     ))
                 } else {
                     return Err(StepError::Stuck);
@@ -925,17 +937,25 @@ impl State {
                 }
 
                 if let Some(pos) = found_pos {
-                    let (new_mem, new_ts) = self.update_mem(
+                    let (new_data, new_ts) = self.update_mem(
                         pos,
                         fields,
-                        memory.clone(),
+                        data.clone(),
                         tuple_spaces.clone(),
                         ts_index,
                         p,
                         remove,
                     )?;
                     Ok(Either::Left(
-                        [(new_mem, new_ts, self.channels.clone(), ptr.bump())].into_iter(),
+                        [(
+                            Memory {
+                                data: new_data,
+                                tuple_spaces: new_ts,
+                                channels: self.memory.channels.clone(),
+                            },
+                            ptr.bump(),
+                        )]
+                        .into_iter(),
                     ))
                 } else {
                     return Err(StepError::Stuck);
@@ -944,17 +964,25 @@ impl State {
             TupleSpaceType::Queue => {
                 if let Some(t) = tuple_spaces[*ts_index as usize].first() {
                     if self.matches(t, fields, p)? {
-                        let (new_mem, new_ts) = self.update_mem(
+                        let (new_data, new_ts) = self.update_mem(
                             0,
                             fields,
-                            memory.clone(),
+                            data.clone(),
                             tuple_spaces.clone(),
                             ts_index,
                             p,
                             remove,
                         )?;
                         return Ok(Either::Left(
-                            [(new_mem, new_ts, self.channels.clone(), ptr.bump())].into_iter(),
+                            [(
+                                Memory {
+                                    data: new_data,
+                                    tuple_spaces: new_ts,
+                                    channels: self.memory.channels.clone(),
+                                },
+                                ptr.bump(),
+                            )]
+                            .into_iter(),
                         ));
                     }
                 }
@@ -964,17 +992,25 @@ impl State {
                 if let Some(t) = tuple_spaces[*ts_index as usize].last() {
                     let pos = tuple_spaces[*ts_index as usize].len() - 1;
                     if self.matches(t, fields, p)? {
-                        let (new_mem, new_ts) = self.update_mem(
+                        let (new_data, new_ts) = self.update_mem(
                             pos,
                             fields,
-                            memory.clone(),
+                            data.clone(),
                             tuple_spaces.clone(),
                             ts_index,
                             p,
                             remove,
                         )?;
                         return Ok(Either::Left(
-                            [(new_mem, new_ts, self.channels.clone(), ptr.bump())].into_iter(),
+                            [(
+                                Memory {
+                                    data: new_data,
+                                    tuple_spaces: new_ts,
+                                    channels: self.memory.channels.clone(),
+                                },
+                                ptr.bump(),
+                            )]
+                            .into_iter(),
                         ));
                     }
                 }
@@ -983,11 +1019,7 @@ impl State {
         }
     }
 
-    fn eval_bool_guard(
-        &self,
-        p: &Program,
-        expr: &BExpr,
-    ) -> Vec<(Memory, Vec<Vec<Vec<Int>>>, Vec<Vec<Int>>)> {
+    fn eval_bool_guard(&self, p: &Program, expr: &BExpr) -> Vec<Memory> {
         match expr {
             BExpr::OP(OperationP::GetP(t, f)) => {
                 let ts_index = p.tuple_space_index(&t.0).unwrap();
@@ -996,7 +1028,11 @@ impl State {
                     .map(|either| {
                         either
                             .into_iter()
-                            .map(|(m, ts, _, _)| (m, ts, self.channels.clone()))
+                            .map(|(m, _)| Memory {
+                                data: m.data,
+                                tuple_spaces: m.tuple_spaces,
+                                channels: m.channels,
+                            })
                             .collect()
                     })
                     .unwrap_or_default()
@@ -1008,7 +1044,11 @@ impl State {
                     .map(|either| {
                         either
                             .into_iter()
-                            .map(|(m, ts, _, _)| (m, ts, self.channels.clone()))
+                            .map(|(m, _)| Memory {
+                                data: m.data,
+                                tuple_spaces: m.tuple_spaces,
+                                channels: m.channels,
+                            })
                             .collect()
                     })
                     .unwrap_or_default()
@@ -1017,27 +1057,33 @@ impl State {
                 let ts_index = p.tuple_space_index(&t.0).unwrap();
                 let ts_meta = &p.tuple_spaces[ts_index as usize];
                 if let BufferSize::Finite(max) = ts_meta.size {
-                    if self.tuple_spaces[ts_index as usize].len() >= max as usize {
+                    if self.memory.tuple_spaces[ts_index as usize].len() >= max as usize {
                         return vec![];
                     }
                 }
-                let mut ts = self.tuple_spaces.clone();
+                let mut ts = self.memory.tuple_spaces.clone();
                 let values = args
                     .iter()
                     .map(|e| e.evaluate(p, self).unwrap_or(0))
                     .collect();
                 ts[ts_index as usize].push(values);
-                vec![(self.memory.clone(), ts, self.channels.clone())]
+                vec![Memory {
+                    data: self.memory.data.clone(),
+                    tuple_spaces: ts,
+                    channels: self.memory.channels.clone(),
+                }]
             }
             BExpr::Logic(l, LogicOp::And | LogicOp::Land, r) => self
                 .eval_bool_guard(p, l)
                 .into_iter()
-                .flat_map(|(m, ts, _)| {
+                .flat_map(|m| {
                     State {
+                        memory: Memory {
+                            data: m.data,
+                            tuple_spaces: m.tuple_spaces,
+                            channels: m.channels,
+                        },
                         ptrs: self.ptrs.clone(),
-                        memory: m,
-                        tuple_spaces: ts,
-                        channels: self.channels.clone(),
                     }
                     .eval_bool_guard(p, r)
                 })
@@ -1050,12 +1096,14 @@ impl State {
                 } else {
                     let chained: Vec<_> = left_res
                         .iter()
-                        .flat_map(|(m, ts, _)| {
+                        .flat_map(|m| {
                             State {
+                                memory: Memory {
+                                    data: m.data.clone(),
+                                    tuple_spaces: m.tuple_spaces.clone(),
+                                    channels: m.channels.clone(),
+                                },
                                 ptrs: self.ptrs.clone(),
-                                memory: m.clone(),
-                                tuple_spaces: ts.clone(),
-                                channels: self.channels.clone(),
                             }
                             .eval_bool_guard(p, r)
                         })
@@ -1070,11 +1118,11 @@ impl State {
             }
             _ => {
                 if expr.evaluate(p, self).unwrap_or(false) {
-                    vec![(
-                        self.memory.clone(),
-                        self.tuple_spaces.clone(),
-                        self.channels.clone(),
-                    )]
+                    vec![Memory {
+                        data: self.memory.data.clone(),
+                        tuple_spaces: self.memory.tuple_spaces.clone(),
+                        channels: self.memory.channels.clone(),
+                    }]
                 } else {
                     vec![]
                 }
@@ -1082,11 +1130,7 @@ impl State {
         }
     }
 
-    fn eval_guard(
-        &self,
-        p: &Program,
-        cg: &CG,
-    ) -> Result<Vec<(Memory, Vec<Vec<Vec<Int>>>, Vec<Vec<Int>>)>, StepError> {
+    fn eval_guard(&self, p: &Program, cg: &CG) -> Result<Vec<Memory>, StepError> {
         match cg {
             CG::BoolExpression(expr) => Ok(self.eval_bool_guard(p, expr)),
             CG::Send(ch, expr) => {
@@ -1094,7 +1138,7 @@ impl State {
                     return Ok(vec![]);
                 }
                 if let Ok(value) = expr.evaluate(p, self) {
-                    let mut channels = self.channels.clone();
+                    let mut channels = self.memory.channels.clone();
                     let ch_index = p.channel_index(&ch.0).unwrap();
                     let buffer_size = p.channels[ch_index as usize].size.clone();
 
@@ -1102,22 +1146,22 @@ impl State {
                         BufferSize::Finite(max_size) => {
                             if channels[ch_index as usize].len() < max_size as usize {
                                 channels[ch_index as usize].push(value);
-                                return Ok(vec![(
-                                    self.memory.clone(),
-                                    self.tuple_spaces.clone(),
+                                return Ok(vec![Memory {
+                                    data: self.memory.data.clone(),
+                                    tuple_spaces: self.memory.tuple_spaces.clone(),
                                     channels,
-                                )]);
+                                }]);
                             } else {
                                 return Ok(vec![]);
                             }
                         }
                         BufferSize::Infinite => {
                             channels[ch_index as usize].push(value);
-                            return Ok(vec![(
-                                self.memory.clone(),
-                                self.tuple_spaces.clone(),
+                            return Ok(vec![Memory {
+                                data: self.memory.data.clone(),
+                                tuple_spaces: self.memory.tuple_spaces.clone(),
                                 channels,
-                            )]);
+                            }]);
                         }
                     }
                 };
@@ -1127,8 +1171,8 @@ impl State {
                 if p.channel_index(&ch.0).is_none() {
                     return Ok(vec![]);
                 }
-                let mut channels = self.channels.clone();
-                let mut memory = self.memory.clone();
+                let mut channels = self.memory.channels.clone();
+                let mut data = self.memory.data.clone();
                 let ch_index = p.channel_index(&ch.0).unwrap();
                 let index = match target {
                     Target::Variable(var) => p.variable_index(&var).unwrap(),
@@ -1136,10 +1180,14 @@ impl State {
                 };
 
                 if let Some(v) = channels[ch_index as usize].first() {
-                    memory[index as usize] = *v;
+                    data[index as usize] = *v;
                     channels[ch_index as usize].remove(0);
 
-                    return Ok(vec![(memory, self.tuple_spaces.clone(), channels)]);
+                    return Ok(vec![Memory {
+                        data,
+                        tuple_spaces: self.memory.tuple_spaces.clone(),
+                        channels,
+                    }]);
                 }
                 Ok(vec![])
             }
@@ -1150,36 +1198,37 @@ impl State {
         &self,
         p: &Program,
         ptr: InstrPtr,
-    ) -> Result<
-        impl Iterator<Item = (Memory, Vec<Vec<Vec<Int>>>, Vec<Vec<Int>>, InstrPtr)>,
-        StepError,
-    > {
+    ) -> Result<impl Iterator<Item = (Memory, InstrPtr)>, StepError> {
         match &p[ptr] {
             Instr::Nop => Ok(Either::Left(
                 [(
-                    self.memory.clone(),
-                    self.tuple_spaces.clone(),
-                    self.channels.clone(),
+                    Memory {
+                        data: self.memory.data.clone(),
+                        tuple_spaces: self.memory.tuple_spaces.clone(),
+                        channels: self.memory.channels.clone(),
+                    },
                     ptr.bump(),
                 )]
                 .into_iter(),
             )),
             Instr::Assign(target, e) => {
                 let value = e.evaluate(p, self)?;
-                let mut memory = self.memory.clone();
+                let mut data = self.memory.data.clone();
 
                 let index = match target {
                     Target::Variable(var) => p.variable_index(&var).unwrap(),
                     Target::Array(arr, idx) => self.array_index(arr, idx, p)?,
                 };
 
-                memory[index as usize] = value;
+                data[index as usize] = value;
 
                 Ok(Either::Left(
                     [(
-                        memory,
-                        self.tuple_spaces.clone(),
-                        self.channels.clone(),
+                        Memory {
+                            data,
+                            tuple_spaces: self.memory.tuple_spaces.clone(),
+                            channels: self.memory.channels.clone(),
+                        },
                         ptr.bump(),
                     )]
                     .into_iter(),
@@ -1188,17 +1237,19 @@ impl State {
             Instr::Branch { choices, otherwise } => {
                 let mut valid = Vec::new();
                 for (cg, target) in choices {
-                    for (mem, ts, ch) in self.eval_guard(p, cg)? {
-                        valid.push((mem, ts, ch, *target));
+                    for mem in self.eval_guard(p, cg)? {
+                        valid.push((mem, *target));
                     }
                 }
                 if valid.is_empty() {
                     if let Some(target) = otherwise {
                         Ok(Either::Left(
                             [(
-                                self.memory.clone(),
-                                self.tuple_spaces.clone(),
-                                self.channels.clone(),
+                                Memory {
+                                    data: self.memory.data.clone(),
+                                    tuple_spaces: self.memory.tuple_spaces.clone(),
+                                    channels: self.memory.channels.clone(),
+                                },
                                 *target,
                             )]
                             .into_iter(),
@@ -1212,9 +1263,11 @@ impl State {
             }
             Instr::Goto(target) => Ok(Either::Left(
                 [(
-                    self.memory.clone(),
-                    self.tuple_spaces.clone(),
-                    self.channels.clone(),
+                    Memory {
+                        data: self.memory.data.clone(),
+                        tuple_spaces: self.memory.tuple_spaces.clone(),
+                        channels: self.memory.channels.clone(),
+                    },
                     *target,
                 )]
                 .into_iter(),
@@ -1226,7 +1279,7 @@ impl State {
                     .map(|e| e.evaluate(p, self).map(Int::from))
                     .collect::<Result<_, _>>()?;
 
-                let mut tuple_spaces = self.tuple_spaces.clone();
+                let mut tuple_spaces = self.memory.tuple_spaces.clone();
 
                 match ts_max_size {
                     BufferSize::Finite(max_size) => {
@@ -1243,9 +1296,11 @@ impl State {
 
                 Ok(Either::Left(
                     [(
-                        self.memory.clone(),
-                        tuple_spaces,
-                        self.channels.clone(),
+                        Memory {
+                            data: self.memory.data.clone(),
+                            tuple_spaces,
+                            channels: self.memory.channels.clone(),
+                        },
                         ptr.bump(),
                     )]
                     .into_iter(),
@@ -1259,7 +1314,7 @@ impl State {
             }
             Instr::Send(buffer_size, ch_index, e) => {
                 let value = e.evaluate(p, self)?;
-                let mut channels = self.channels.clone();
+                let mut channels = self.memory.channels.clone();
 
                 match buffer_size {
                     BufferSize::Finite(max_size) => {
@@ -1276,17 +1331,19 @@ impl State {
 
                 Ok(Either::Left(
                     [(
-                        self.memory.clone(),
-                        self.tuple_spaces.clone(),
-                        channels,
+                        Memory {
+                            data: self.memory.data.clone(),
+                            tuple_spaces: self.memory.tuple_spaces.clone(),
+                            channels,
+                        },
                         ptr.bump(),
                     )]
                     .into_iter(),
                 ))
             }
             Instr::Receive(ch_index, target) => {
-                let mut channels = self.channels.clone();
-                let mut memory = self.memory.clone();
+                let mut channels = self.memory.channels.clone();
+                let mut data = self.memory.data.clone();
 
                 let index = match target {
                     Target::Variable(var) => p.variable_index(&var).unwrap(),
@@ -1294,11 +1351,19 @@ impl State {
                 };
 
                 if let Some(v) = channels[*ch_index as usize].first() {
-                    memory[index as usize] = *v;
+                    data[index as usize] = *v;
                     channels[*ch_index as usize].remove(0);
 
                     return Ok(Either::Left(
-                        [(memory, self.tuple_spaces.clone(), channels, ptr.bump())].into_iter(),
+                        [(
+                            Memory {
+                                data,
+                                tuple_spaces: self.memory.tuple_spaces.clone(),
+                                channels,
+                            },
+                            ptr.bump(),
+                        )]
+                        .into_iter(),
                     ));
                 }
                 Err(StepError::Stuck)
@@ -1311,7 +1376,7 @@ impl State {
     }
 
     pub fn raw_id(&self) -> String {
-        let vars = self.memory.iter().format(" ");
+        let vars = self.memory.data.iter().format(" ");
         format!("{}@{}", vars, self.ptrs.iter().map(|p| p.0).format("X"))
     }
     pub fn format<'a>(&'a self, p: &'a Program) -> StateFormat<'a> {
@@ -1333,13 +1398,14 @@ impl fmt::Display for StateFormat<'_> {
 
         for (idx, target_meta) in self.program.targets.iter().enumerate() {
             if let Target::Variable(var) = &target_meta.target {
-                let value = self.state.memory[idx];
+                let value = self.state.memory.data[idx];
                 parts.push(format!("{var} = {value}"));
             }
         }
 
         for (arr, base, len) in self.program.arrays() {
-            let array_values: Vec<String> = self.state.memory[base as usize..(base + len) as usize]
+            let array_values: Vec<String> = self.state.memory.data
+                [base as usize..(base + len) as usize]
                 .iter()
                 .map(|v| v.to_string())
                 .collect();
@@ -1350,7 +1416,7 @@ impl fmt::Display for StateFormat<'_> {
             .program
             .tuple_spaces
             .iter()
-            .zip(&self.state.tuple_spaces)
+            .zip(&self.state.memory.tuple_spaces)
         {
             let tuples_str = ts_values
                 .iter()
@@ -1369,7 +1435,12 @@ impl fmt::Display for StateFormat<'_> {
             parts.push(format!("{} = {{{}}}", ts_meta.name, tuples_str))
         }
 
-        for (ch_meta, ch_values) in self.program.channels.iter().zip(&self.state.channels) {
+        for (ch_meta, ch_values) in self
+            .program
+            .channels
+            .iter()
+            .zip(&self.state.memory.channels)
+        {
             parts.push(format!(
                 "{} = ({})",
                 ch_meta.name,
@@ -1394,7 +1465,7 @@ impl AExpr {
                     Target::Variable(var) => p.variable_index(&var).unwrap(),
                     Target::Array(arr, idx) => state.array_index(arr, idx, p)?,
                 };
-                state.memory[index as usize]
+                state.memory.data[index as usize]
             }
             AExpr::Binary(l, op, r) => {
                 let l = l.evaluate(p, state)?;
@@ -1501,14 +1572,14 @@ impl ChannelFormula {
             ChannelFormula::ChannelHead(c, e) => {
                 let e = e.evaluate(p, state)?;
                 let index = p.channel_index(&c.0).unwrap();
-                state.channels[index as usize]
+                state.memory.channels[index as usize]
                     .first()
                     .map_or(false, |v| e == *v)
             }
             ChannelFormula::ChannelContains(c, e) => {
                 let e = e.evaluate(p, state)?;
                 let index = p.channel_index(&c.0).unwrap();
-                state.channels[index as usize].contains(&e)
+                state.memory.channels[index as usize].contains(&e)
             }
         })
     }
