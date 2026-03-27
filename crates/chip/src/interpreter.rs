@@ -6,7 +6,9 @@ use mcltl::ltl::expression::Literal;
 
 use crate::{
     ast::{
-        AExpr, AOp, Array, BExpr, BufferSize, CG, Channel, ChannelFormula, ChannelName, Command, CommandKind, Commands, Field, Function, Int, LTLFormula, Locator, LogicOp, Operation, OperationP, RelOp, Target, TupleSpace, TupleSpaceName, TupleSpaceType, Variable
+        AExpr, AOp, Array, BExpr, BufferSize, CG, Channel, ChannelFormula, ChannelName, Command,
+        CommandKind, Commands, Field, Function, Int, LTLFormula, Locator, LogicOp, Operation,
+        OperationP, RelOp, Target, TupleSpace, TupleSpaceName, TupleSpaceType, Variable,
     },
     ast_ext::FreeVariables,
     parse::SourceSpan,
@@ -36,20 +38,20 @@ enum Instr {
     Send(BufferSize, u32, AExpr),
     Receive(u32, Target<Box<AExpr>>),
     SyncSend {
-        channel: String,
+        channel: ChannelName,
         expr: AExpr,
     },
     SyncReceive {
-        channel: String,
+        channel: ChannelName,
         target: Target<Box<AExpr>>,
     },
     Broadcast {
-        channel: String,
+        channel: ChannelName,
         k: Int,
         expr: AExpr,
     },
     Gather {
-        channel: String,
+        channel: ChannelName,
         k: Int,
         array: Array,
         target: Target<Box<AExpr>>,
@@ -378,7 +380,7 @@ impl Program {
                 } else {
                     self.push(
                         Instr::SyncSend {
-                            channel: ch.0.to_string(),
+                            channel: ch.clone(),
                             expr: e.clone(),
                         },
                         Some(cmd.span),
@@ -391,7 +393,7 @@ impl Program {
                 } else {
                     self.push(
                         Instr::SyncReceive {
-                            channel: ch.0.to_string(),
+                            channel: ch.clone(),
                             target: target.clone(),
                         },
                         Some(cmd.span),
@@ -401,7 +403,7 @@ impl Program {
             CommandKind::Broadcast(ch, k, e) => {
                 self.push(
                     Instr::Broadcast {
-                        channel: ch.0.to_string(),
+                        channel: ch.clone(),
                         k: k.clone(),
                         expr: e.clone(),
                     },
@@ -411,7 +413,7 @@ impl Program {
             CommandKind::Gather(ch, k, arr, x) => {
                 self.push(
                     Instr::Gather {
-                        channel: ch.0.to_string(),
+                        channel: ch.clone(),
                         k: k.clone(),
                         array: arr.clone(),
                         target: x.clone(),
@@ -487,7 +489,6 @@ impl State {
                     expr,
                 } => {
                     let value = expr.evaluate(p, self)?;
-                    let mut counter = 0;
                     let mut receivers = Vec::new();
                     for j in 0..self.ptrs.len() {
                         if i == j {
@@ -499,14 +500,12 @@ impl State {
                                 target,
                             } if c1 == c2 => {
                                 receivers.push((j, target.clone(), None));
-                                counter += 1;
                             }
                             Instr::Branch { choices, .. } => {
                                 for (cg, t) in choices {
                                     if let CG::Receive(c2, target) = cg {
-                                        if *c1 == c2.0.to_string() {
+                                        if c1 == c2 {
                                             receivers.push((j, target.clone(), Some(*t)));
-                                            counter += 1;
                                         }
                                     }
                                 }
@@ -514,7 +513,7 @@ impl State {
                             _ => {}
                         }
                     }
-                    if *k <= counter {
+                    if *k as usize <= receivers.len() {
                         let mut new_state = self.clone();
                         for (j, target, branch_ptr) in receivers {
                             let index = match target {
@@ -565,7 +564,7 @@ impl State {
                             Instr::Branch { choices, .. } => {
                                 for (cg, t) in choices {
                                     if let CG::Send(c2, expr) = cg {
-                                        if *c1 == c2.0.to_string() {
+                                        if c1 == c2 {
                                             let value = expr.evaluate(p, self)?;
                                             senders.push((j, value, Some(*t)));
                                         }
@@ -624,11 +623,11 @@ impl State {
                     ) => {
                         if c1 == c2 {
                             if let Ok(value) = expr.evaluate(p, self) {
-                                let mut new_state = self.clone();
                                 let index = match target {
                                     Target::Variable(var) => p.variable_index(&var).unwrap(),
                                     Target::Array(arr, idx) => self.array_index(arr, idx, p)?,
                                 };
+                                let mut new_state = self.clone();
                                 new_state.memory.data[index as usize] = value;
                                 new_state.ptrs[i] = new_state.ptrs[i].bump();
                                 new_state.ptrs[j] = new_state.ptrs[j].bump();
@@ -664,7 +663,7 @@ impl State {
                     (Instr::SyncSend { channel: c1, expr }, Instr::Branch { choices: cj, .. }) => {
                         for (cgj, target_j) in cj {
                             if let CG::Receive(c2, t) = cgj {
-                                if *c1 == c2.0.to_string() {
+                                if c1 == c2 {
                                     if let Ok(value) = expr.evaluate(p, self) {
                                         let index = match t {
                                             Target::Variable(var) => {
@@ -693,9 +692,8 @@ impl State {
                     ) => {
                         for (cgi, target_i) in ci {
                             if let CG::Send(c1, expr) = cgi {
-                                if c1.0.to_string() == *c2 {
+                                if c1 == c2 {
                                     if let Ok(value) = expr.evaluate(p, self) {
-                                        let mut new_state = self.clone();
                                         let index = match target {
                                             Target::Variable(var) => {
                                                 p.variable_index(&var).unwrap()
@@ -704,6 +702,7 @@ impl State {
                                                 self.array_index(arr, idx, p)?
                                             }
                                         };
+                                        let mut new_state = self.clone();
                                         new_state.memory.data[index as usize] = value;
                                         new_state.ptrs[i] = *target_i;
                                         new_state.ptrs[j] = new_state.ptrs[j].bump();
@@ -843,6 +842,37 @@ impl State {
         Ok((data_copy, ts_copy))
     }
 
+    fn get_updated_mem(
+        &self,
+        pos: usize,
+        fields: &Vec<Field>,
+        data: Vec<i32>,
+        tuple_spaces: Vec<Vec<Vec<i32>>>,
+        ts_index: &u32,
+        p: &Program,
+        remove: bool,
+        ptr: &InstrPtr,
+    ) -> Result<(Memory, InstrPtr), StepError> {
+        let (data_copy, ts_copy) = self.update_mem(
+            pos,
+            fields,
+            data.clone(),
+            tuple_spaces.clone(),
+            ts_index,
+            p,
+            remove,
+        )?;
+
+        Ok((
+            Memory {
+                data: data_copy,
+                tuple_spaces: ts_copy,
+                channels: self.memory.channels.clone(),
+            },
+            ptr.bump(),
+        ))
+    }
+
     fn match_tuple_space_type(
         &self,
         ts_type: &TupleSpaceType,
@@ -864,7 +894,7 @@ impl State {
 
                 for (pos, t) in tuple_spaces[*ts_index as usize].iter().enumerate() {
                     if self.matches(t, fields, p)? {
-                        let (data_copy, ts_copy) = self.update_mem(
+                        results.push(self.get_updated_mem(
                             pos,
                             fields,
                             data.clone(),
@@ -872,16 +902,8 @@ impl State {
                             ts_index,
                             p,
                             remove,
-                        )?;
-
-                        results.push((
-                            Memory {
-                                data: data_copy,
-                                tuple_spaces: ts_copy,
-                                channels: self.memory.channels.clone(),
-                            },
-                            ptr.bump(),
-                        ));
+                            ptr,
+                        )?);
                     }
                 }
 
@@ -902,24 +924,17 @@ impl State {
                 }
 
                 if let Some(pos) = found_pos {
-                    let (new_data, new_ts) = self.update_mem(
-                        pos,
-                        fields,
-                        data.clone(),
-                        tuple_spaces.clone(),
-                        ts_index,
-                        p,
-                        remove,
-                    )?;
                     Ok(Either::Left(
-                        [(
-                            Memory {
-                                data: new_data,
-                                tuple_spaces: new_ts,
-                                channels: self.memory.channels.clone(),
-                            },
-                            ptr.bump(),
-                        )]
+                        [self.get_updated_mem(
+                            pos,
+                            fields,
+                            data,
+                            tuple_spaces,
+                            ts_index,
+                            p,
+                            remove,
+                            ptr,
+                        )?]
                         .into_iter(),
                     ))
                 } else {
@@ -937,24 +952,17 @@ impl State {
                 }
 
                 if let Some(pos) = found_pos {
-                    let (new_data, new_ts) = self.update_mem(
-                        pos,
-                        fields,
-                        data.clone(),
-                        tuple_spaces.clone(),
-                        ts_index,
-                        p,
-                        remove,
-                    )?;
                     Ok(Either::Left(
-                        [(
-                            Memory {
-                                data: new_data,
-                                tuple_spaces: new_ts,
-                                channels: self.memory.channels.clone(),
-                            },
-                            ptr.bump(),
-                        )]
+                        [self.get_updated_mem(
+                            pos,
+                            fields,
+                            data,
+                            tuple_spaces,
+                            ts_index,
+                            p,
+                            remove,
+                            ptr,
+                        )?]
                         .into_iter(),
                     ))
                 } else {
@@ -964,24 +972,17 @@ impl State {
             TupleSpaceType::Queue => {
                 if let Some(t) = tuple_spaces[*ts_index as usize].first() {
                     if self.matches(t, fields, p)? {
-                        let (new_data, new_ts) = self.update_mem(
-                            0,
-                            fields,
-                            data.clone(),
-                            tuple_spaces.clone(),
-                            ts_index,
-                            p,
-                            remove,
-                        )?;
                         return Ok(Either::Left(
-                            [(
-                                Memory {
-                                    data: new_data,
-                                    tuple_spaces: new_ts,
-                                    channels: self.memory.channels.clone(),
-                                },
-                                ptr.bump(),
-                            )]
+                            [self.get_updated_mem(
+                                0,
+                                fields,
+                                data,
+                                tuple_spaces,
+                                ts_index,
+                                p,
+                                remove,
+                                ptr,
+                            )?]
                             .into_iter(),
                         ));
                     }
@@ -992,24 +993,17 @@ impl State {
                 if let Some(t) = tuple_spaces[*ts_index as usize].last() {
                     let pos = tuple_spaces[*ts_index as usize].len() - 1;
                     if self.matches(t, fields, p)? {
-                        let (new_data, new_ts) = self.update_mem(
-                            pos,
-                            fields,
-                            data.clone(),
-                            tuple_spaces.clone(),
-                            ts_index,
-                            p,
-                            remove,
-                        )?;
                         return Ok(Either::Left(
-                            [(
-                                Memory {
-                                    data: new_data,
-                                    tuple_spaces: new_ts,
-                                    channels: self.memory.channels.clone(),
-                                },
-                                ptr.bump(),
-                            )]
+                            [self.get_updated_mem(
+                                pos,
+                                fields,
+                                data,
+                                tuple_spaces,
+                                ts_index,
+                                p,
+                                remove,
+                                ptr,
+                            )?]
                             .into_iter(),
                         ));
                     }
@@ -1019,40 +1013,33 @@ impl State {
         }
     }
 
+    fn find_tuple_p(
+        &self,
+        p: &Program,
+        ts_name: &TupleSpaceName,
+        field: &Vec<Field>,
+        remove: bool,
+    ) -> Vec<Memory> {
+        let ts_index = p.tuple_space_index(&ts_name.0).unwrap();
+        let ts_type = p.tuple_spaces[ts_index as usize].space_type.clone();
+        self.match_tuple_space_type(&ts_type, &ts_index, field, p, &InstrPtr(0), remove)
+            .map(|either| {
+                either
+                    .into_iter()
+                    .map(|(m, _)| Memory {
+                        data: m.data,
+                        tuple_spaces: m.tuple_spaces,
+                        channels: m.channels,
+                    })
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
     fn eval_bool_guard(&self, p: &Program, expr: &BExpr) -> Vec<Memory> {
         match expr {
-            BExpr::OP(OperationP::GetP(t, f)) => {
-                let ts_index = p.tuple_space_index(&t.0).unwrap();
-                let ts_type = p.tuple_spaces[ts_index as usize].space_type.clone();
-                self.match_tuple_space_type(&ts_type, &ts_index, f, p, &InstrPtr(0), true)
-                    .map(|either| {
-                        either
-                            .into_iter()
-                            .map(|(m, _)| Memory {
-                                data: m.data,
-                                tuple_spaces: m.tuple_spaces,
-                                channels: m.channels,
-                            })
-                            .collect()
-                    })
-                    .unwrap_or_default()
-            }
-            BExpr::OP(OperationP::QueryP(t, f)) => {
-                let ts_index = p.tuple_space_index(&t.0).unwrap();
-                let ts_type = p.tuple_spaces[ts_index as usize].space_type.clone();
-                self.match_tuple_space_type(&ts_type, &ts_index, f, p, &InstrPtr(0), false)
-                    .map(|either| {
-                        either
-                            .into_iter()
-                            .map(|(m, _)| Memory {
-                                data: m.data,
-                                tuple_spaces: m.tuple_spaces,
-                                channels: m.channels,
-                            })
-                            .collect()
-                    })
-                    .unwrap_or_default()
-            }
+            BExpr::OP(OperationP::GetP(t, f)) => self.find_tuple_p(p, t, f, true),
+            BExpr::OP(OperationP::QueryP(t, f)) => self.find_tuple_p(p, t, f, false),
             BExpr::OP(OperationP::PutP(t, args)) => {
                 let ts_index = p.tuple_space_index(&t.0).unwrap();
                 let ts_meta = &p.tuple_spaces[ts_index as usize];
