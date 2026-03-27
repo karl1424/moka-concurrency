@@ -6,39 +6,30 @@ type LTLParseError<'a> =
     ParseError<usize, lalrpop_util::lexer::Token<'a>, crate::parse::CustomError>;
 
 pub fn validate_ltl_program<'a>(
-    assignments: (
-        IndexMap<Variable, i32>,
-        IndexMap<Array, Vec<i32>>,
-        IndexMap<Variable, TupleSpace>,
-        IndexMap<Variable, Channel>,
-        Vec<Variable>,
-    ),
+    assignments: (Initial, Vec<ChannelName>),
     commands: Vec<Commands<(), ()>>,
     properties: Vec<LTLProperty>,
 ) -> Result<LTLProgram, LTLParseError<'a>> {
-    let (init_variables, init_arrays, init_tuple_spaces, init_async_channels, init_sync_channels) =
+    let (initial, sync_channels) =
         assignments;
 
     for commands in &commands {
         for command in &commands.0 {
             validate_command(
                 command,
-                &init_tuple_spaces,
-                &init_async_channels,
-                &init_sync_channels,
+                &initial.tuple_spaces,
+                &initial.channels,
+                &sync_channels,
             )?;
         }
     }
 
     for (span, property) in &properties {
-        validate_property(property, span, &init_tuple_spaces, &init_async_channels)?;
+        validate_property(property, span, &initial.tuple_spaces, &initial.channels)?;
     }
 
     Ok(LTLProgram {
-        init_variables,
-        init_arrays,
-        init_tuple_spaces,
-        init_channels: init_async_channels,
+        initial,
         commands,
         properties,
     })
@@ -46,9 +37,9 @@ pub fn validate_ltl_program<'a>(
 
 fn validate_command<'a>(
     command: &Command<(), ()>,
-    tuple_spaces: &IndexMap<Variable, TupleSpace>,
-    async_channels: &IndexMap<Variable, Channel>,
-    sync_channels: &Vec<Variable>,
+    tuple_spaces: &IndexMap<TupleSpaceName, TupleSpace>,
+    async_channels: &IndexMap<ChannelName, Channel>,
+    sync_channels: &Vec<ChannelName>,
 ) -> Result<(), LTLParseError<'a>> {
     match &command.kind {
         CommandKind::O(operation) => {
@@ -92,7 +83,13 @@ fn validate_command<'a>(
         }
         CommandKind::IfCG(cgs) | CommandKind::LoopCG(_, cgs) => {
             for cg in cgs {
-                validate_communication_guard(cg, tuple_spaces, async_channels, sync_channels, &command.span)?;
+                validate_communication_guard(
+                    cg,
+                    tuple_spaces,
+                    async_channels,
+                    sync_channels,
+                    &command.span,
+                )?;
             }
         }
         _ => {}
@@ -102,7 +99,7 @@ fn validate_command<'a>(
 
 fn validate_guard_operations<'a>(
     guard: &BExpr,
-    tuple_spaces: &IndexMap<Variable, TupleSpace>,
+    tuple_spaces: &IndexMap<TupleSpaceName, TupleSpace>,
     span: &SourceSpan,
 ) -> Result<(), LTLParseError<'a>> {
     match guard {
@@ -125,9 +122,9 @@ fn validate_guard_operations<'a>(
 
 fn validate_communication_guard<'a>(
     cg: &CommunicationGuard<(), ()>,
-    tuple_spaces: &IndexMap<Variable, TupleSpace>,
-    async_channels: &IndexMap<Variable, Channel>,
-    sync_channels: &Vec<Variable>,
+    tuple_spaces: &IndexMap<TupleSpaceName, TupleSpace>,
+    async_channels: &IndexMap<ChannelName, Channel>,
+    sync_channels: &Vec<ChannelName>,
     span: &SourceSpan,
 ) -> Result<(), LTLParseError<'a>> {
     match &cg.guard {
@@ -152,8 +149,8 @@ fn validate_communication_guard<'a>(
 fn validate_property<'a>(
     property: &LTLFormula,
     span: &SourceSpan,
-    tuple_spaces: &IndexMap<Variable, TupleSpace>,
-    channels: &IndexMap<Variable, Channel>,
+    tuple_spaces: &IndexMap<TupleSpaceName, TupleSpace>,
+    channels: &IndexMap<ChannelName, Channel>,
 ) -> Result<(), LTLParseError<'a>> {
     match property {
         LTLFormula::Operation(op) => {
@@ -189,7 +186,7 @@ fn validate_property<'a>(
     Ok(())
 }
 
-fn extract_operation_name<'a>(operation: &'a Operation) -> &'a Variable {
+fn extract_operation_name<'a>(operation: &'a Operation) -> &'a TupleSpaceName {
     match operation {
         Operation::Put(name, _) | Operation::Get(name, _) | Operation::Query(name, _) => name,
     }

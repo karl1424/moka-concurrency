@@ -41,6 +41,10 @@ Target: Target<Box<AExpr>> = {
 Variable: Variable = Var => Variable(<>);
 #[inline]
 Array: Array = Var => Array(<>);
+#[inline]
+TupleSpaceName: TupleSpaceName = Var => TupleSpaceName(<>);
+#[inline]
+ChannelName: ChannelName = Var => ChannelName(<>);
 
 Function<X>: Function = {
     "division" "(" <X> "," <X> ")"  => Function::Division(<>),
@@ -141,10 +145,10 @@ LTLCommandKind: CommandKind<(), ()> = {
     "do" <LTLGuards> "od"                       => CommandKind::Loop((), <>),
     "loop" <LTLCommunicationGuards> "pool"      => CommandKind::LoopCG((), <>),
     <Operation>                                 => CommandKind::O(<>),
-    <Variable> "!" <AExpr>                        => CommandKind::Send(<>),
-    <Variable> "?" <Target>                       => CommandKind::Receive(<>),
-    <Variable> "!!" <Int> <AExpr>                 => CommandKind::Broadcast(<>),
-    <Variable> "??" <Int> <Array> <Target>        => CommandKind::Gather(<>),
+    <ChannelName> "!" <AExpr>                        => CommandKind::Send(<>),
+    <ChannelName> "?" <Target>                       => CommandKind::Receive(<>),
+    <ChannelName> "!!" <Int> <AExpr>                 => CommandKind::Broadcast(<>),
+    <ChannelName> "??" <Int> <Array> <Target>        => CommandKind::Gather(<>),
 };
 LTLGuards: Vec<Guard<(), ()>> = SepNonEmpty<LTLGuard, "[]">;
 LTLGuard: Guard<(), ()> = {
@@ -158,20 +162,20 @@ LTLCommunicationGuard: CommunicationGuard<(), ()> = {
 
 CG: CG = {
     <MokaBExpr> => CG::BoolExpression(<>),
-    <Variable> "!" <AExpr> => CG::Send(<>),
-    <Variable> "?" <Target> => CG::Receive(<>),
+    <ChannelName> "!" <AExpr> => CG::Send(<>),
+    <ChannelName> "?" <Target> => CG::Receive(<>),
 }
 
 Operation: Operation = {
-    <Variable> ".put" <TuplePut> => Operation::Put(<>),
-    <Variable> ".get" <TupleGet> => Operation::Get(<>),
-    <Variable> ".query" <TupleGet> => Operation::Query(<>),
+    <TupleSpaceName> ".put" <TuplePut> => Operation::Put(<>),
+    <TupleSpaceName> ".get" <TupleGet> => Operation::Get(<>),
+    <TupleSpaceName> ".query" <TupleGet> => Operation::Query(<>),
 };
 
 OperationP: Operation = {
-    <Variable> ".putP" <TuplePut> => Operation::Put(<>),
-    <Variable> ".getP" <TupleGet> => Operation::Get(<>),
-    <Variable> ".queryP" <TupleGet> => Operation::Query(<>),
+    <TupleSpaceName> ".putP" <TuplePut> => Operation::Put(<>),
+    <TupleSpaceName> ".getP" <TupleGet> => Operation::Get(<>),
+    <TupleSpaceName> ".queryP" <TupleGet> => Operation::Query(<>),
 };
 
 PredicateChain: PredicateChain = {
@@ -269,39 +273,39 @@ pub LTLProgram: LTLProgram = {
     },
 };
 
-LTLInitialAssign: (IndexMap<Variable, i32>, IndexMap<Array, Vec<i32>>, IndexMap<Variable, TupleSpace>, IndexMap<Variable, Channel>, Vec<Variable>) = {
+LTLInitialAssign: (Initial, Vec<ChannelName>) = {
     <from:@L> <lines:(">" <SepNonEmpty<LTLAssignment, ",">>)*> <to:@R> =>? {
-        let mut init_variables = IndexMap::new();
-        let mut init_arrays = IndexMap::new();
-        let mut init_tuple_spaces = IndexMap::new();
-        let mut init_async_channels = IndexMap::new(); 
-        let mut init_sync_channels = Vec::new();
+        let mut variables = IndexMap::new();
+        let mut arrays = IndexMap::new();
+        let mut tuple_spaces = IndexMap::new();
+        let mut async_channels = IndexMap::new(); 
+        let mut sync_channels = Vec::new();
         for line in lines {
             for assignment in line {
                 match assignment {
-                    AssignmentKind::Int(var, val) => { init_variables.insert(var, val); },
-                    AssignmentKind::Array(var, vals) => { init_arrays.insert(var, vals); },
-                    AssignmentKind::TupleSpace(var, ts) => {
-                        init_tuple_spaces.insert(var, TupleSpace {
+                    AssignmentKind::Int(name, val) => { variables.insert(name, val); },
+                    AssignmentKind::Array(name, vals) => { arrays.insert(name, vals); },
+                    AssignmentKind::TupleSpace(name, ts) => {
+                        tuple_spaces.insert(name, TupleSpace {
                             space_type: ts.space_type,
                             size: ts.size,
                             space: ts.space,
                         });
                     },
-                    AssignmentKind::AsyncChannel(var, ch) => {
-                        init_async_channels.insert(var, Channel {
+                    AssignmentKind::AsyncChannel(name, ch) => {
+                        async_channels.insert(name, Channel {
                             size: ch.size,
                             channel: ch.channel,
                         });
                     },
-                    AssignmentKind::SyncChannel(var) => {
-                        init_sync_channels.push(var);
+                    AssignmentKind::SyncChannel(name) => {
+                        sync_channels.push(name);
                     },
                 }
             }
         }
-        for ac in init_async_channels.keys() {
-            if init_sync_channels.contains(ac){
+        for ac in async_channels.keys() {
+            if sync_channels.contains(ac){
                 return Err(lalrpop_util::ParseError::User {
                     error: crate::parse::CustomError::DuplicateChannelName {
                         name: ac.0.clone(),
@@ -311,7 +315,12 @@ LTLInitialAssign: (IndexMap<Variable, i32>, IndexMap<Array, Vec<i32>>, IndexMap<
                 });
             }
         }
-        Ok((init_variables, init_arrays, init_tuple_spaces, init_async_channels, init_sync_channels))
+        Ok((Initial {
+            variables,
+            arrays,
+            tuple_spaces,
+            channels: async_channels,
+        }, sync_channels))
     }
 };
 
@@ -319,18 +328,18 @@ LTLAssignment: AssignmentKind = {
     <var:Var> "=" <val:Int> => AssignmentKind::Int(Variable(var), val),
     <var:Var> "=" "-" <val:Int> => AssignmentKind::Int(Variable(var), -val),
     <var:Var> "=" <vals:ArrayInit> => AssignmentKind::Array(Array(var), vals),
-    <var:Var> "=" <ts:TupleSpace> => AssignmentKind::TupleSpace(Variable(var), TupleSpace {
+    <var:Var> "=" <ts:TupleSpace> => AssignmentKind::TupleSpace(TupleSpaceName(var), TupleSpace {
         space_type: ts.0,
         size: ts.1,
         space: ts.2,
     }),
-    <var:Var> "=" <ch:Channel> => AssignmentKind::AsyncChannel(Variable(var), Channel {
+    <var:Var> "=" <ch:Channel> => AssignmentKind::AsyncChannel(ChannelName(var), Channel {
         size: ch.0,
         channel: ch.1,
     }),
     <from:@L> <var:Var> "=" "(" <size:Int> ")" <to:@R> =>? {  
         if size == 0 {  
-            Ok(AssignmentKind::SyncChannel(Variable(var)))  
+            Ok(AssignmentKind::SyncChannel(ChannelName(var)))  
         } else {  
             Err(lalrpop_util::ParseError::User {
                 error: crate::parse::CustomError::InvalidBufferSize {
@@ -395,7 +404,7 @@ TupleGet: Vec<Field> = {
 Field: Field = {
     <expr:AExpr> => Field::Expression(expr),
     "_" => Field::Any,
-    "?" <Target> => Field::Variable(<>),
+    "?" <Target> => Field::Target(<>),
 }
 
 Value: Int = {
@@ -473,8 +482,8 @@ LTLFormula: LTLFormula = {
     "F" <LTLFormula> => LTLFormula::Finally(Box::new(<>)),
     "(" <LTLFormula_> ")",
     <OperationP> => LTLFormula::Operation(<>),
-    <Variable> "?" <AExpr> => LTLFormula::ChannelFormula(ChannelFormula::ChannelHead(<>)),
-    <Variable> "??" <AExpr> => LTLFormula::ChannelFormula(ChannelFormula::ChannelContains(<>)),
+    <ChannelName> "?" <AExpr> => LTLFormula::ChannelFormula(ChannelFormula::ChannelHead(<>)),
+    <ChannelName> "??" <AExpr> => LTLFormula::ChannelFormula(ChannelFormula::ChannelContains(<>)),
 
     #[precedence(level="1")] #[assoc(side="left")]
     <l:LTLFormula> "&" <r:LTLFormula> => LTLFormula::And(Box::new(l), Box::new(r)),

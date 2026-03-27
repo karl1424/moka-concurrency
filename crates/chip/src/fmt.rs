@@ -3,9 +3,10 @@ use std::fmt::Display;
 use itertools::Itertools;
 
 use crate::ast::{
-    AExpr, AOp, Array, BExpr, CG, ChannelFormula, Command, CommandKind, Commands,
-    CommunicationGuard, Field, Function, Guard, LTLFormula, LTLProgram, Locator, LogicOp,
-    Operation, PredicateBlock, PredicateChain, Quantifier, RelOp, Target, Variable,
+    AExpr, AOp, Array, BExpr, BufferSize, CG, Channel, ChannelFormula, ChannelName, Command,
+    CommandKind, Commands, CommunicationGuard, Field, Function, Guard, LTLFormula, LTLProgram,
+    Locator, LogicOp, Operation, PredicateBlock, PredicateChain, Quantifier, RelOp, Target,
+    TupleSpace, TupleSpaceName, TupleSpaceType, Variable,
 };
 
 impl Display for Variable {
@@ -14,6 +15,16 @@ impl Display for Variable {
     }
 }
 impl Display for Array {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+impl Display for TupleSpaceName {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+impl Display for ChannelName {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0)
     }
@@ -33,6 +44,62 @@ impl std::fmt::Display for Target<()> {
             Self::Variable(v) => Display::fmt(v, f),
             Self::Array(a, ()) => Display::fmt(a, f),
         }
+    }
+}
+
+impl std::fmt::Display for TupleSpace {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let tuples_space = self
+            .space
+            .iter()
+            .map(|tuple| {
+                format!(
+                    "({})",
+                    tuple
+                        .iter()
+                        .map(|v| v.to_string())
+                        .collect::<Vec<_>>()
+                        .join(",")
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(", ");
+        write!(
+            f,
+            "({}, {}, {{{}}})",
+            match self.space_type {
+                TupleSpaceType::Random => "R",
+                TupleSpaceType::Queue => "Q",
+                TupleSpaceType::Stack => "S",
+                TupleSpaceType::LIFO => "L",
+                TupleSpaceType::FIFO => "F",
+            },
+            match self.size {
+                BufferSize::Finite(size) => size.clone().to_string(),
+                BufferSize::Infinite => "INF".to_string(),
+            },
+            tuples_space
+        )
+    }
+}
+
+impl std::fmt::Display for Channel {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let channel = self
+            .channel
+            .iter()
+            .map(|v| v.to_string())
+            .collect::<Vec<_>>()
+            .join(", ");
+        write!(
+            f,
+            "({}, ({}))",
+            match self.size {
+                BufferSize::Finite(size) => size.clone().to_string(),
+                BufferSize::Infinite => "INF".to_string(),
+            },
+            channel
+        )
     }
 }
 
@@ -233,13 +300,13 @@ impl Display for Operation {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Operation::Put(t, args) => {
-                write!(f, "{t}.putP({})", args.iter().format(", "))
+                write!(f, "{t}.putP({})", args.iter().format(","))
             }
             Operation::Get(t, fields) => {
-                write!(f, "{t}.getP({})", fields.iter().format(", "))
+                write!(f, "{t}.getP({})", fields.iter().format(","))
             }
             Operation::Query(t, fields) => {
-                write!(f, "{t}.queryP({})", fields.iter().format(", "))
+                write!(f, "{t}.queryP({})", fields.iter().format(","))
             }
         }
     }
@@ -250,7 +317,7 @@ impl Display for Field {
         match self {
             Field::Expression(e) => write!(f, "{e}"),
             Field::Any => write!(f, "_"),
-            Field::Variable(v) => write!(f, "?{v}"),
+            Field::Target(v) => write!(f, "?{v}"),
         }
     }
 }
@@ -328,11 +395,49 @@ impl Display for LTLFormula {
 }
 impl Display for LTLProgram {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let init = self
-            .init_variables
-            .iter()
-            .map(|(var, val)| format!("{var} = {val}"))
-            .format(", ");
+        let mut init_parts = Vec::new();
+
+        if !self.initial.variables.is_empty() {
+            let vars = self
+                .initial
+                .variables
+                .iter()
+                .map(|(var, val)| format!("{var} = {val}"))
+                .format(", ");
+            init_parts.push(format!("{}", vars));
+        }
+
+        if !self.initial.arrays.is_empty() {
+            let arrays = self
+                .initial
+                .arrays
+                .iter()
+                .map(|(arr, vals)| format!("{arr} = [{}]", vals.iter().format(", ")))
+                .format(", ");
+            init_parts.push(format!("{}", arrays));
+        }
+
+        if !self.initial.tuple_spaces.is_empty() {
+            let ts = self
+                .initial
+                .tuple_spaces
+                .iter()
+                .map(|(name, ts)| format!("{name} = {}", ts))
+                .format(", ");
+            init_parts.push(format!("{}", ts));
+        }
+
+        if !self.initial.channels.is_empty() {
+            let channels = self
+                .initial
+                .channels
+                .iter()
+                .map(|(name, ch)| format!("{name} = {}", ch))
+                .format(", ");
+            init_parts.push(format!("{}", channels));
+        }
+
+        let init = init_parts.iter().format(", ");
         writeln!(f, "> {init}")?;
 
         if self.commands.len() == 1 {

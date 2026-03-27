@@ -6,9 +6,9 @@ use mcltl::ltl::expression::Literal;
 
 use crate::{
     ast::{
-        AExpr, AOp, Array, BExpr, BufferSize, CG, Channel, ChannelFormula, Command, CommandKind,
-        Commands, Field, Function, Int, LTLFormula, Locator, LogicOp, Operation, RelOp, Target,
-        TupleSpace, TupleSpaceType, Variable,
+        AExpr, AOp, Array, BExpr, BufferSize, CG, Channel, ChannelFormula, ChannelName, Command,
+        CommandKind, Commands, Field, Function, Int, LTLFormula, Locator, LogicOp, Operation,
+        RelOp, Target, TupleSpace, TupleSpaceName, TupleSpaceType, Variable,
     },
     ast_ext::FreeVariables,
     parse::SourceSpan,
@@ -77,14 +77,14 @@ pub struct TargetMeta {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TupleSpaceMeta {
-    pub name: Variable,
+    pub name: TupleSpaceName,
     pub space_type: TupleSpaceType,
     pub size: BufferSize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ChannelMeta {
-    pub name: Variable,
+    pub name: ChannelName,
     pub size: BufferSize,
 }
 
@@ -100,8 +100,8 @@ impl Program {
     pub fn compile(
         cmdss: &[Commands<(), ()>],
         additional_targets: impl IntoIterator<Item = Target>,
-        tuple_spaces: IndexMap<Variable, TupleSpace>,
-        channels: IndexMap<Variable, Channel>,
+        tuple_spaces: IndexMap<TupleSpaceName, TupleSpace>,
+        channels: IndexMap<ChannelName, Channel>,
         array_sizes: IndexMap<Array, u32>,
     ) -> Program {
         let targets: Vec<Target> = cmdss
@@ -832,7 +832,7 @@ impl State {
             ts_copy[*ts_index as usize][pos].clone()
         };
         for (v, f) in tuple.iter().zip(fields.iter()) {
-            if let Field::Variable(t) = f {
+            if let Field::Target(t) = f {
                 let index = match t {
                     Target::Variable(var) => p.variable_index(&var).unwrap(),
                     Target::Array(arr, idx) => self.array_index(arr, idx, p)?,
@@ -1503,7 +1503,9 @@ impl ChannelFormula {
             ChannelFormula::ChannelHead(c, e) => {
                 let e = e.evaluate(p, state)?;
                 let index = p.channel_index(&c.0).unwrap();
-                state.channels[index as usize].first().map_or(false, |v| e == *v)
+                state.channels[index as usize]
+                    .first()
+                    .map_or(false, |v| e == *v)
             }
             ChannelFormula::ChannelContains(c, e) => {
                 let e = e.evaluate(p, state)?;

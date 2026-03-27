@@ -4,9 +4,9 @@ use indexmap::IndexSet;
 use itertools::Either;
 
 use crate::ast::{
-    AExpr, AOp, Array, BExpr, CG, ChannelFormula, Command, CommandKind, Commands,
+    AExpr, AOp, Array, BExpr, CG, ChannelFormula, ChannelName, Command, CommandKind, Commands,
     CommunicationGuard, Field, Function, Guard, LTLFormula, LogicOp, Operation, PredicateBlock,
-    PredicateChain, Target, TargetDef, TargetKind, Variable,
+    PredicateChain, Target, TargetDef, TargetKind, TupleSpaceName, Variable,
 };
 
 impl Target<()> {
@@ -89,6 +89,32 @@ impl FromStr for Array {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(Array(s.to_string()))
+    }
+}
+
+impl Debug for TupleSpaceName {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+impl FromStr for TupleSpaceName {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(TupleSpaceName(s.to_string()))
+    }
+}
+
+impl Debug for ChannelName {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+impl FromStr for ChannelName {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(ChannelName(s.to_string()))
     }
 }
 
@@ -335,7 +361,7 @@ impl FreeVariables for Operation {
                 .iter()
                 .flat_map(|f| match f {
                     Field::Expression(a) => a.fv(),
-                    Field::Variable(v) => v.fv(),
+                    Field::Target(v) => v.fv(),
                     _ => Default::default(),
                 })
                 .collect(),
@@ -349,7 +375,7 @@ impl FreeVariables for Operation {
                 .iter()
                 .flat_map(|f| match f {
                     Field::Expression(a) => a.funs(),
-                    Field::Variable(v) => v.funs(),
+                    Field::Target(v) => v.funs(),
                     _ => Default::default(),
                 })
                 .collect(),
@@ -508,7 +534,7 @@ impl Field {
         match self {
             Field::Expression(e) => Field::Expression(e.subst_var(t, x)),
             Field::Any => Field::Any,
-            Field::Variable(v) => Field::Variable(v.clone()),
+            Field::Target(v) => Field::Target(v.clone()),
         }
     }
 }
