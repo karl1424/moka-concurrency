@@ -8,7 +8,7 @@ use mcltl::{
 };
 
 use crate::{
-    ast::{BExpr, ChannelFormula, Locator, Operation, Target},
+    ast::{BExpr, ChannelFormula, Locator,OperationP, Target},
     ast_ext::FreeVariables,
 };
 
@@ -126,7 +126,7 @@ impl ReachableStates {
     fn build_kripke(
         &self,
         relational_properties: &[(crate::ast::AExpr, crate::ast::RelOp, crate::ast::AExpr)],
-        operation_properties: &[Operation],
+        operation_properties: &[OperationP],
         channel_properties: &[ChannelFormula],
     ) -> mcltl::verifier::kripke::KripkeStructure<State, Literal> {
         let mut kripke: mcltl::verifier::kripke::KripkeStructure<State, Literal> =
@@ -241,7 +241,7 @@ impl ReachableStates {
 
 pub struct Pipeline {
     pub relational_properties: Vec<(crate::ast::AExpr, crate::ast::RelOp, crate::ast::AExpr)>,
-    pub operation_properties: Vec<Operation>,
+    pub operation_properties: Vec<OperationP>,
     pub channel_properties: Vec<ChannelFormula>,
     pub ltl_property: mcltl::ltl::expression::LTLExpression,
     pub nnf_ltl_property: mcltl::ltl::expression::NnfLtl<Literal>,

@@ -3,10 +3,7 @@ use std::fmt::Display;
 use itertools::Itertools;
 
 use crate::ast::{
-    AExpr, AOp, Array, BExpr, BufferSize, CG, Channel, ChannelFormula, ChannelName, Command,
-    CommandKind, Commands, CommunicationGuard, Field, Function, Guard, LTLFormula, LTLProgram,
-    Locator, LogicOp, Operation, PredicateBlock, PredicateChain, Quantifier, RelOp, Target,
-    TupleSpace, TupleSpaceName, TupleSpaceType, Variable,
+    AExpr, AOp, Array, BExpr, BufferSize, CG, Channel, ChannelFormula, ChannelName, Command, CommandKind, Commands, CommunicationGuard, Field, Function, Guard, LTLFormula, LTLProgram, Locator, LogicOp, Operation, OperationP, PredicateBlock, PredicateChain, Quantifier, RelOp, Target, TupleSpace, TupleSpaceName, TupleSpaceType, Variable
 };
 
 impl Display for Variable {
@@ -300,12 +297,28 @@ impl Display for Operation {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Operation::Put(t, args) => {
-                write!(f, "{t}.putP({})", args.iter().format(","))
+                write!(f, "{t}.put({})", args.iter().format(","))
             }
             Operation::Get(t, fields) => {
-                write!(f, "{t}.getP({})", fields.iter().format(","))
+                write!(f, "{t}.get({})", fields.iter().format(","))
             }
             Operation::Query(t, fields) => {
+                write!(f, "{t}.query({})", fields.iter().format(","))
+            }
+        }
+    }
+}
+
+impl Display for OperationP {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            OperationP::PutP(t, args) => {
+                write!(f, "{t}.putP({})", args.iter().format(","))
+            }
+            OperationP::GetP(t, fields) => {
+                write!(f, "{t}.getP({})", fields.iter().format(","))
+            }
+            OperationP::QueryP(t, fields) => {
                 write!(f, "{t}.queryP({})", fields.iter().format(","))
             }
         }
@@ -376,7 +389,7 @@ impl Display for LTLFormula {
             LTLFormula::Bool(b) => write!(f, "{b}"),
             LTLFormula::Locator(locator) => write!(f, "{locator}"),
             LTLFormula::Rel(aexpr, rel_op, aexpr1) => write!(f, "({aexpr} {rel_op} {aexpr1})"),
-            LTLFormula::Operation(op) => write!(f, "{op}"),
+            LTLFormula::OperationP(op) => write!(f, "{op}"),
             LTLFormula::ChannelFormula(cf) => write!(f, "{cf}"),
             LTLFormula::Not(ltlformula) => write!(f, "!{ltlformula}"),
             LTLFormula::And(ltlformula, ltlformula1) => write!(f, "({ltlformula} & {ltlformula1})"),

@@ -74,6 +74,13 @@ pub enum Operation {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum OperationP {
+    PutP(TupleSpaceName, Vec<AExpr>),
+    GetP(TupleSpaceName, Vec<Field>),
+    QueryP(TupleSpaceName, Vec<Field>),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Field {
     Expression(AExpr),
     Any,
@@ -137,7 +144,7 @@ pub enum BExpr {
     Logic(Box<BExpr>, LogicOp, Box<BExpr>),
     Not(Box<BExpr>),
     Quantified(Quantifier, Target<()>, Box<BExpr>),
-    OP(Operation),
+    OP(OperationP),
 }
 
 pub type Predicate = BExpr;
@@ -191,7 +198,7 @@ pub enum LTLFormula {
     Bool(bool),
     Locator(Locator),
     Rel(AExpr, RelOp, AExpr),
-    Operation(Operation),
+    OperationP(OperationP),
     ChannelFormula(ChannelFormula),
     Not(Box<LTLFormula>),
     And(Box<LTLFormula>, Box<LTLFormula>),

@@ -6,9 +6,7 @@ use mcltl::ltl::expression::Literal;
 
 use crate::{
     ast::{
-        AExpr, AOp, Array, BExpr, BufferSize, CG, Channel, ChannelFormula, ChannelName, Command,
-        CommandKind, Commands, Field, Function, Int, LTLFormula, Locator, LogicOp, Operation,
-        RelOp, Target, TupleSpace, TupleSpaceName, TupleSpaceType, Variable,
+        AExpr, AOp, Array, BExpr, BufferSize, CG, Channel, ChannelFormula, ChannelName, Command, CommandKind, Commands, Field, Function, Int, LTLFormula, Locator, LogicOp, Operation, OperationP, RelOp, Target, TupleSpace, TupleSpaceName, TupleSpaceType, Variable
     },
     ast_ext::FreeVariables,
     parse::SourceSpan,
@@ -991,7 +989,7 @@ impl State {
         expr: &BExpr,
     ) -> Vec<(Memory, Vec<Vec<Vec<Int>>>, Vec<Vec<Int>>)> {
         match expr {
-            BExpr::OP(Operation::Get(t, f)) => {
+            BExpr::OP(OperationP::GetP(t, f)) => {
                 let ts_index = p.tuple_space_index(&t.0).unwrap();
                 let ts_type = p.tuple_spaces[ts_index as usize].space_type.clone();
                 self.match_tuple_space_type(&ts_type, &ts_index, f, p, &InstrPtr(0), true)
@@ -1003,7 +1001,7 @@ impl State {
                     })
                     .unwrap_or_default()
             }
-            BExpr::OP(Operation::Query(t, f)) => {
+            BExpr::OP(OperationP::QueryP(t, f)) => {
                 let ts_index = p.tuple_space_index(&t.0).unwrap();
                 let ts_type = p.tuple_spaces[ts_index as usize].space_type.clone();
                 self.match_tuple_space_type(&ts_type, &ts_index, f, p, &InstrPtr(0), false)
@@ -1015,7 +1013,7 @@ impl State {
                     })
                     .unwrap_or_default()
             }
-            BExpr::OP(Operation::Put(t, args)) => {
+            BExpr::OP(OperationP::PutP(t, args)) => {
                 let ts_index = p.tuple_space_index(&t.0).unwrap();
                 let ts_meta = &p.tuple_spaces[ts_index as usize];
                 if let BufferSize::Finite(max) = ts_meta.size {
@@ -1520,7 +1518,7 @@ impl LTLFormula {
     pub fn to_mcltl(
         &self,
         rels: &mut Vec<(AExpr, RelOp, AExpr)>,
-        operations: &mut Vec<Operation>,
+        operations: &mut Vec<OperationP>,
         channels: &mut Vec<ChannelFormula>,
     ) -> mcltl::ltl::expression::LTLExpression {
         use mcltl::ltl::expression::LTLExpression;
@@ -1541,7 +1539,7 @@ impl LTLFormula {
                 };
                 LTLExpression::Literal(format!("p{idx}").into())
             }
-            LTLFormula::Operation(op) => {
+            LTLFormula::OperationP(op) => {
                 let idx = if let Some(idx) = operations.iter().position(|x| x == op) {
                     idx
                 } else {

@@ -104,7 +104,7 @@ fn validate_guard_operations<'a>(
 ) -> Result<(), LTLParseError<'a>> {
     match guard {
         BExpr::OP(op) => {
-            let name = extract_operation_name(op);
+            let name = extract_operation_p_name(op);
             if !tuple_spaces.contains_key(name) {
                 return Err(ParseError::User {
                     error: crate::parse::CustomError::Undefined {
@@ -153,8 +153,8 @@ fn validate_property<'a>(
     channels: &IndexMap<ChannelName, Channel>,
 ) -> Result<(), LTLParseError<'a>> {
     match property {
-        LTLFormula::Operation(op) => {
-            let name = extract_operation_name(op);
+        LTLFormula::OperationP(op) => {
+            let name = extract_operation_p_name(op);
             if !tuple_spaces.contains_key(name) {
                 return Err(ParseError::User {
                     error: crate::parse::CustomError::Undefined {
@@ -189,5 +189,11 @@ fn validate_property<'a>(
 fn extract_operation_name<'a>(operation: &'a Operation) -> &'a TupleSpaceName {
     match operation {
         Operation::Put(name, _) | Operation::Get(name, _) | Operation::Query(name, _) => name,
+    }
+}
+
+fn extract_operation_p_name<'a>(operation_p: &'a OperationP) -> &'a TupleSpaceName {
+    match operation_p {
+        OperationP::PutP(name, _) | OperationP::GetP(name, _) | OperationP::QueryP(name, _) => name,
     }
 }

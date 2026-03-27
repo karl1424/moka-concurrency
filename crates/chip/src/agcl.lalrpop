@@ -172,10 +172,10 @@ Operation: Operation = {
     <TupleSpaceName> ".query" <TupleGet> => Operation::Query(<>),
 };
 
-OperationP: Operation = {
-    <TupleSpaceName> ".putP" <TuplePut> => Operation::Put(<>),
-    <TupleSpaceName> ".getP" <TupleGet> => Operation::Get(<>),
-    <TupleSpaceName> ".queryP" <TupleGet> => Operation::Query(<>),
+OperationP: OperationP = {
+    <TupleSpaceName> ".putP" <TuplePut> => OperationP::PutP(<>),
+    <TupleSpaceName> ".getP" <TupleGet> => OperationP::GetP(<>),
+    <TupleSpaceName> ".queryP" <TupleGet> => OperationP::QueryP(<>),
 };
 
 PredicateChain: PredicateChain = {
@@ -481,7 +481,7 @@ LTLFormula: LTLFormula = {
     "G" <LTLFormula> => LTLFormula::Globally(Box::new(<>)),
     "F" <LTLFormula> => LTLFormula::Finally(Box::new(<>)),
     "(" <LTLFormula_> ")",
-    <OperationP> => LTLFormula::Operation(<>),
+    <OperationP> => LTLFormula::OperationP(<>),
     <ChannelName> "?" <AExpr> => LTLFormula::ChannelFormula(ChannelFormula::ChannelHead(<>)),
     <ChannelName> "??" <AExpr> => LTLFormula::ChannelFormula(ChannelFormula::ChannelContains(<>)),
 

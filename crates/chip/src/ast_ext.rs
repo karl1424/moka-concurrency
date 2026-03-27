@@ -4,9 +4,7 @@ use indexmap::IndexSet;
 use itertools::Either;
 
 use crate::ast::{
-    AExpr, AOp, Array, BExpr, CG, ChannelFormula, ChannelName, Command, CommandKind, Commands,
-    CommunicationGuard, Field, Function, Guard, LTLFormula, LogicOp, Operation, PredicateBlock,
-    PredicateChain, Target, TargetDef, TargetKind, TupleSpaceName, Variable,
+    AExpr, AOp, Array, BExpr, CG, ChannelFormula, ChannelName, Command, CommandKind, Commands, CommunicationGuard, Field, Function, Guard, LTLFormula, LogicOp, Operation, OperationP, PredicateBlock, PredicateChain, Target, TargetDef, TargetKind, TupleSpaceName, Variable
 };
 
 impl Target<()> {
@@ -383,6 +381,36 @@ impl FreeVariables for Operation {
     }
 }
 
+impl FreeVariables for OperationP {
+    fn fv(&self) -> IndexSet<Target> {
+        match self {
+            OperationP::PutP(_, values) => values.iter().flat_map(|a| a.fv()).collect(),
+            OperationP::GetP(_, values) | OperationP::QueryP(_, values) => values
+                .iter()
+                .flat_map(|f| match f {
+                    Field::Expression(a) => a.fv(),
+                    Field::Target(v) => v.fv(),
+                    _ => Default::default(),
+                })
+                .collect(),
+        }
+    }
+
+    fn funs(&self) -> IndexSet<Function> {
+        match self {
+            OperationP::PutP(_, values) => values.iter().flat_map(|a| a.funs()).collect(),
+            OperationP::GetP(_, values) | OperationP::QueryP(_, values) => values
+                .iter()
+                .flat_map(|f| match f {
+                    Field::Expression(a) => a.funs(),
+                    Field::Target(v) => v.funs(),
+                    _ => Default::default(),
+                })
+                .collect(),
+        }
+    }
+}
+
 impl FreeVariables for ChannelFormula {
     fn fv(&self) -> IndexSet<Target> {
         match self {
@@ -409,7 +437,7 @@ impl FreeVariables for BExpr {
                 fv.shift_remove(x);
                 fv
             }
-            BExpr::OP(o) => o.fv(),
+            BExpr::OP(op) => op.fv(),
         }
     }
     fn funs(&self) -> IndexSet<Function> {
@@ -419,7 +447,7 @@ impl FreeVariables for BExpr {
             BExpr::Logic(l, _, r) => l.funs().union(&r.funs()).cloned().collect(),
             BExpr::Not(x) => x.funs(),
             BExpr::Quantified(_, _, b) => b.funs(),
-            BExpr::OP(o) => o.funs(),
+            BExpr::OP(op) => op.funs(),
         }
     }
 }
@@ -490,7 +518,7 @@ impl BExpr {
                     BExpr::Quantified(*q, v.clone(), Box::new(e.subst_var(t, x)))
                 }
             }
-            BExpr::OP(o) => BExpr::OP(o.subst_var(t, x)),
+            BExpr::OP(op) => BExpr::OP(op.subst_var(t, x)),
         }
     }
 }
@@ -522,6 +550,25 @@ impl Operation {
                 fields.iter().map(|f| f.subst_var(t, x)).collect(),
             ),
             Operation::Query(target, fields) => Operation::Query(
+                target.clone(),
+                fields.iter().map(|f| f.subst_var(t, x)).collect(),
+            ),
+        }
+    }
+}
+
+impl OperationP {
+    pub fn subst_var<T>(&self, t: &Target<T>, x: &AExpr) -> OperationP {
+        match self {
+            OperationP::PutP(target, values) => OperationP::PutP(
+                target.clone(),
+                values.iter().map(|a| a.subst_var(t, x)).collect(),
+            ),
+            OperationP::GetP(target, fields) => OperationP::GetP(
+                target.clone(),
+                fields.iter().map(|f| f.subst_var(t, x)).collect(),
+            ),
+            OperationP::QueryP(target, fields) => OperationP::QueryP(
                 target.clone(),
                 fields.iter().map(|f| f.subst_var(t, x)).collect(),
             ),
@@ -569,7 +616,7 @@ impl FreeVariables for LTLFormula {
             // Globally(Box<LTLFormula>), Finally(Box<LTLFormula>),
             LTLFormula::Bool(_) | LTLFormula::Locator(_) => Default::default(),
             LTLFormula::Rel(l, _, r) => l.fv().union(&r.fv()).cloned().collect(),
-            LTLFormula::Operation(op) => op.fv(),
+            LTLFormula::OperationP(op) => op.fv(),
             LTLFormula::Not(x) => x.fv(),
             LTLFormula::And(l, r) | LTLFormula::Or(l, r) | LTLFormula::Implies(l, r) => {
                 l.fv().union(&r.fv()).cloned().collect()
@@ -583,7 +630,7 @@ impl FreeVariables for LTLFormula {
         match self {
             LTLFormula::Bool(_) | LTLFormula::Locator(_) => Default::default(),
             LTLFormula::Rel(l, _, r) => l.funs().union(&r.funs()).cloned().collect(),
-            LTLFormula::Operation(op) => op.funs(),
+            LTLFormula::OperationP(op) => op.funs(),
             LTLFormula::Not(x) => x.funs(),
             LTLFormula::And(l, r) | LTLFormula::Or(l, r) | LTLFormula::Implies(l, r) => {
                 l.funs().union(&r.funs()).cloned().collect()
