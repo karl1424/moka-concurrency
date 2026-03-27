@@ -440,14 +440,24 @@ impl Display for LTLProgram {
             init_parts.push(format!("{}", ts));
         }
 
-        if !self.initial.channels.is_empty() {
-            let channels = self
+        if !self.initial.async_channels.is_empty() {
+            let async_channels = self
                 .initial
-                .channels
+                .async_channels
                 .iter()
                 .map(|(name, ch)| format!("{name} = {}", ch))
                 .format(", ");
-            init_parts.push(format!("{}", channels));
+            init_parts.push(format!("{}", async_channels));
+        }
+
+        if !self.initial.sync_channels.is_empty() {
+            let sync_channels = self
+                .initial
+                .sync_channels
+                .iter()
+                .map(|name| format!("{name} = (0)"))
+                .format(", ");
+            init_parts.push(format!("{}", sync_channels));
         }
 
         let init = init_parts.iter().format(", ");

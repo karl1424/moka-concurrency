@@ -273,7 +273,7 @@ pub LTLProgram: LTLProgram = {
     },
 };
 
-LTLInitialAssign: (Initial, Vec<ChannelName>) = {
+LTLInitialAssign: Initial = {
     <from:@L> <lines:(">" <SepNonEmpty<LTLAssignment, ",">>)*> <to:@R> =>? {
         let mut variables = IndexMap::new();
         let mut arrays = IndexMap::new();
@@ -315,12 +315,13 @@ LTLInitialAssign: (Initial, Vec<ChannelName>) = {
                 });
             }
         }
-        Ok((Initial {
+        Ok(Initial {
             variables,
             arrays,
             tuple_spaces,
-            channels: async_channels,
-        }, sync_channels))
+            async_channels,
+            sync_channels,
+        })
     }
 };
 

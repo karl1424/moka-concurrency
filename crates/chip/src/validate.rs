@@ -6,26 +6,25 @@ type LTLParseError<'a> =
     ParseError<usize, lalrpop_util::lexer::Token<'a>, crate::parse::CustomError>;
 
 pub fn validate_ltl_program<'a>(
-    assignments: (Initial, Vec<ChannelName>),
+    assignments: Initial,
     commands: Vec<Commands<(), ()>>,
     properties: Vec<LTLProperty>,
 ) -> Result<LTLProgram, LTLParseError<'a>> {
-    let (initial, sync_channels) =
-        assignments;
+    let initial = assignments;
 
     for commands in &commands {
         for command in &commands.0 {
             validate_command(
                 command,
                 &initial.tuple_spaces,
-                &initial.channels,
-                &sync_channels,
+                &initial.async_channels,
+                &initial.sync_channels,
             )?;
         }
     }
 
     for (span, property) in &properties {
-        validate_property(property, span, &initial.tuple_spaces, &initial.channels)?;
+        validate_property(property, span, &initial.tuple_spaces, &initial.async_channels)?;
     }
 
     Ok(LTLProgram {

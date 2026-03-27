@@ -258,7 +258,8 @@ pub struct Initial {
     pub variables: IndexMap<Variable, i32>,
     pub arrays: IndexMap<Array, Vec<i32>>,
     pub tuple_spaces: IndexMap<TupleSpaceName, TupleSpace>,
-    pub channels: IndexMap<ChannelName, Channel>,
+    pub async_channels: IndexMap<ChannelName, Channel>,
+    pub sync_channels: Vec<ChannelName>,
 }
 
 pub struct LTLProgram {

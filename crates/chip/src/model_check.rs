@@ -64,7 +64,7 @@ impl ReachableStates {
                         .map(|arr| Target::Array(arr, ())),
                 ),
             ltl_program.initial.tuple_spaces.clone(),
-            ltl_program.initial.channels.clone(),
+            ltl_program.initial.async_channels.clone(),
             ltl_program
                 .initial.arrays
                 .iter()
@@ -81,7 +81,7 @@ impl ReachableStates {
                 .map(|(_, ts)| ts.space.clone())
                 .collect(),
             ltl_program
-                .initial.channels
+                .initial.async_channels
                 .clone()
                 .into_iter()
                 .map(|(_, ch)| ch.channel.clone())
