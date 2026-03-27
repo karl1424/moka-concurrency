@@ -1,4 +1,4 @@
-//queryP operation in do using queue type tuple space 
+//queryP operation in do using queue type tuple space
 > ts = (Q, INF, {(1,1), (3),(1,2),(1,3)})
 
 do ts.queryP(1, ?x) -> skip
