@@ -28,7 +28,7 @@
         ['"skip"'],
         ['Command', '";"', 'Command'],
         ['"if"', 'CommunicationGuard', '"fi"'],
-        ['"do"', 'Guard', '"ods"'],
+        ['"do"', 'Guard', '"od"'],
         ['"loop"', 'CommunicationGuard', '"pool"'],
       ],
     },
