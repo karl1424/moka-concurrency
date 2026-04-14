@@ -12,38 +12,57 @@
     {
       left: 'Initialization',
       group: 'Initialization Grammar',
-      right: [['">"', 'Init'], ['Initialization', '">"', 'Init']],
+      right: [
+        ['">"', 'Init'],
+        ['Initialization', '">"', 'Init'],
+      ],
     },
     {
       left: 'Init',
       group: 'Initialization Grammar',
       right: [
-      ['Var', '"="', 'Int'],
-      ['Arr', '"="', '"["', 'Content', '"]"'],
-      ['Ts', '"="', '"("', 'TuppleType', '","', 'BufferSize', '","', '"{', 'Tuples' ,'"}"', '")"'],
-      ['Ch', '"="', '"("', 'BufferSize', '","', '"("', 'Content', '")"', '")"'],
-      ['Ch', '"="', '"("', '"0"', '")"'],
-      ['Init', '","', 'Init']],
+        ['Var', '"="', 'Int'],
+        ['Arr', '"="', '"["', 'Content', '"]"'],
+        [
+          'Ts',
+          '"="',
+          '"("',
+          'TuppleType',
+          '","',
+          'BufferSize',
+          '","',
+          '"{',
+          'Tuples',
+          '"}"',
+          '")"',
+        ],
+        ['Ch', '"="', '"("', 'BufferSize', '","', '"("', 'Content', '")"', '")"'],
+        ['Ch', '"="', '"("', '"0"', '")"'],
+        ['Init', '","', 'Init'],
+      ],
     },
     {
       left: 'TupleType',
       group: 'Initialization Grammar',
-      right: [['"R"'], ['"S"'], ['"Q"'], ['"F"'], ['"L"'],],
+      right: [['"R"'], ['"S"'], ['"Q"'], ['"F"'], ['"L"']],
     },
     {
       left: 'BufferSize',
       group: 'Initialization Grammar',
-      right: [['"INF"'], ['PosInt'],],
+      right: [['"INF"'], ['PosInt']],
     },
     {
       left: 'Tuples',
       group: 'Initialization Grammar',
-      right: [['"("', 'Content', '")"'], ['Tuples', '","', 'Tuples'],],
+      right: [
+        ['"("', 'Content', '")"'],
+        ['Tuples', '","', 'Tuples'],
+      ],
     },
     {
       left: 'Content',
       group: 'Initialization Grammar',
-      right: [['Int'], ['Content', '","', 'Content'],],
+      right: [['Int'], ['Content', '","', 'Content']],
     },
 
     {
@@ -60,9 +79,9 @@
         ['Ch', '"!"', 'AExpr'],
         ['Ch', '"?"', 'Var'],
         ['Ch', '"?"', 'Arr', '"["', 'AExpr', '"]"'],
-        ['Ch', '"!!"', 'Int', 'AExpr'],
-        ['Ch', '"??"', 'Int', 'Arr', 'Var'],
-        ['Ch', '"??"', 'Int', 'Arr', 'Arr', '"["', 'AExpr', '"]"'],
+        ['Ch', '"!"', '"!"', 'Int', 'AExpr'],
+        ['Ch', '"?"', '"?"', 'Int', 'Arr', 'Var'],
+        ['Ch', '"?"', '"?"', 'Int', 'Arr', 'Arr', '"["', 'AExpr', '"]"'],
         ['Operation'],
         ['"skip"'],
         ['Command', '";"', 'Command'],
@@ -106,8 +125,6 @@
         ['Int'],
         ['Var'],
         ['Arr', '"["', 'AExpr', '"]"'],
-        ['"old"', '"("', 'Var', '")"'],
-        ['"old"', '"("', 'Arr', '"["', 'AExpr', '"]"', '")"'],
         ['"-"', 'AExpr'],
         ['"("', 'AExpr', '")"'],
         ['AExpr', '"*"', 'AExpr'],
@@ -219,13 +236,11 @@
         prepareToken(production.left) +
         ' ::= & \\;' +
         (production.inline
-          ? production.right
-              .map((right) => right.map(prepareToken).join(' '))
-              .join(' \\mid  \\;')
+          ? production.right.map((right) => right.map(prepareToken).join(' ')).join(' \\mid  \\;')
           : production.right
               .map((right) => right.map(prepareToken).join(' '))
               .join(' \\\\  \\mid  & \\;')) +
-        ' \\\\'
+        ' \\\\',
     )
     .join('')}
 \\end{aligned}
@@ -239,9 +254,6 @@
 
   {#each groups as group}
     <h2>{group}</h2>
-    <Katex
-      math={buildGrammar(productions.filter((p) => p.group === group))}
-      displayMode={true}
-    />
+    <Katex math={buildGrammar(productions.filter((p) => p.group === group))} displayMode={true} />
   {/each}
 </article>

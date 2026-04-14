@@ -87,7 +87,7 @@ pub MokaBExpr: BExpr = {
     #[precedence(level="2")] #[assoc(side="left")]
     <l:MokaBExpr> "|" <r:MokaBExpr> => BExpr::logic(l, LogicOp::Lor, r),
 };
-MokaBExpr_: BExpr = BExpr;
+MokaBExpr_: BExpr = MokaBExpr;
 
 RelOp: RelOp = {
     "<"  => RelOp::Lt,
@@ -147,8 +147,8 @@ LTLCommandKind: CommandKind<(), ()> = {
     <Operation>                                 => CommandKind::O(<>),
     <ChannelName> "!" <AExpr>                        => CommandKind::Send(<>),
     <ChannelName> "?" <Target>                       => CommandKind::Receive(<>),
-    <ChannelName> "!!" <Int> <AExpr>                 => CommandKind::Broadcast(<>),
-    <ChannelName> "??" <Int> <Array> <Target>        => CommandKind::Gather(<>),
+    <ChannelName> "!" "!" <Int> <AExpr>                 => CommandKind::Broadcast(<>),
+    <ChannelName> "?" "?" <Int> <Array> <Target>        => CommandKind::Gather(<>),
 };
 LTLGuards: Vec<Guard<(), ()>> = SepNonEmpty<LTLGuard, "[]">;
 LTLGuard: Guard<(), ()> = {
@@ -484,7 +484,7 @@ LTLFormula: LTLFormula = {
     "(" <LTLFormula_> ")",
     <OperationP> => LTLFormula::OperationP(<>),
     <ChannelName> "?" <AExpr> => LTLFormula::ChannelFormula(ChannelFormula::ChannelHead(<>)),
-    <ChannelName> "??" <AExpr> => LTLFormula::ChannelFormula(ChannelFormula::ChannelContains(<>)),
+    <ChannelName> "?" "?" <AExpr> => LTLFormula::ChannelFormula(ChannelFormula::ChannelContains(<>)),
 
     #[precedence(level="1")] #[assoc(side="left")]
     <l:LTLFormula> "&" <r:LTLFormula> => LTLFormula::And(Box::new(l), Box::new(r)),
