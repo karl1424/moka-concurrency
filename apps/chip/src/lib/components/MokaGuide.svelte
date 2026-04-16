@@ -301,17 +301,6 @@
           ],
         },
         {
-          title: 'Functions:',
-          items: [
-            'division = Returns the result of one arithmetic expression divided by another.',
-            'min = Returns the smaller of two arithmetic expressions.',
-            'max = Returns the larger of two arithmetic expressions.',
-            'fac = Returns the factorial of an arithmetic expression.',
-            'fib = Returns the Fibonacci value of an arithmetic expression.',
-            'exp = Returns the Fibonacci value of an arithmetic expression.',
-          ],
-        },
-        {
           title: 'Communication guard:',
           intro: ['Communication guards are conditional constructs that control execution based on channel availability.'],
           items: ['Ch ! AExpr -> Command = The system checks whether the value can be placed into the channel (e.g. buffer capacity constraints). If the condition is satisfied, the value is inserted and the subsequent command is executed.', 
@@ -323,6 +312,17 @@
               value:
                 'If the guard condition is not satisfied, the command is not executed and the system waits or skips depending on the semantics of the model.',
             },
+          ],
+        },
+        {
+          title: 'Functions:',
+          items: [
+            'division = Returns the result of one arithmetic expression divided by another.',
+            'min = Returns the smaller of two arithmetic expressions.',
+            'max = Returns the larger of two arithmetic expressions.',
+            'fac = Returns the factorial of an arithmetic expression.',
+            'fib = Returns the Fibonacci value of an arithmetic expression.',
+            'exp = Returns the Fibonacci value of an arithmetic expression.',
           ],
         },
       ],
