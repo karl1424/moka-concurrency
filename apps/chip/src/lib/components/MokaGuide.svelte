@@ -195,11 +195,11 @@
       inline: true,
     },
     {
-      left: 'Formular',
+      left: 'Formula',
       group: 'LTL property Grammar:',
       right: [
         ['"check"', 'LF'],
-        ['formula', '"check"', 'LF'],
+        ['Formula', '"check"', 'LF'],
       ],
     },
     {
