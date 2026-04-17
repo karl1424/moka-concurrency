@@ -269,8 +269,8 @@
           items: [
             '! = Sends an arithmetic expression to the channel.',
             '? = Recieves an arithmetic expression from a variable or an array.',
-            '!! = Broadcasts an arithmetic expression to channels once a specified minimum number of receivers is available to gather.',
-            '?? = Gathers a broadcasted arithmetic expression when a broadcast is available.',
+            '!! = Broadcasts an arithmetic expression to channels once a specified minimum number of receivers is available to gather (only synchronous).',
+            '?? = Gathers a broadcasted arithmetic expression when a broadcast is available (only synchronous).',
           ],
           note: [
             {
@@ -324,7 +324,7 @@
             'max = Returns the larger of two arithmetic expressions.',
             'fac = Returns the factorial of an arithmetic expression.',
             'fib = Returns the Fibonacci value of an arithmetic expression.',
-            'exp = Returns the Fibonacci value of an arithmetic expression.',
+            'exp = Returns the result of raising one arithmetic expression to the power of another.',
           ],
         },
       ],
