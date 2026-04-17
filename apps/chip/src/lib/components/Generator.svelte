@@ -5,7 +5,7 @@
   }
 
   interface Props {
-    onselect: (code: string) => void;
+    onselect?: (code: string) => void;
   }
 
   let { onselect }: Props = $props();
@@ -103,7 +103,7 @@ check F terminated`,
       <li>
         <button
           class="w-full rounded px-2 py-2 text-left text-sm transition hover:bg-slate-700"
-          onclick={() => onselect(example.code)}
+          onclick={() => onselect?.(example.code)}
         >
           {example.title}
         </button>
