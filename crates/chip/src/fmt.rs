@@ -3,7 +3,10 @@ use std::fmt::Display;
 use itertools::Itertools;
 
 use crate::ast::{
-    AExpr, AOp, Array, BExpr, BufferSize, CG, Channel, ChannelFormula, ChannelName, Command, CommandKind, Commands, CommunicationGuard, Field, Function, Guard, LTLFormula, LTLProgram, Locator, LogicOp, Operation, OperationP, PredicateBlock, PredicateChain, Quantifier, RelOp, Target, TupleSpace, TupleSpaceName, TupleSpaceType, Variable
+    AExpr, AOp, Array, BExpr, BufferSize, CG, Channel, ChannelFormula, ChannelName, Command,
+    CommandKind, Commands, CommunicationGuard, Field, Function, Guard, LTLFormula, LTLProgram,
+    Locator, LogicOp, Operation, OperationP, PredicateBlock, PredicateChain, Quantifier, RelOp,
+    Target, TupleSpace, TupleSpaceName, TupleSpaceType, Variable,
 };
 
 impl Display for Variable {

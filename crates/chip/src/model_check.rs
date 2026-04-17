@@ -8,7 +8,7 @@ use mcltl::{
 };
 
 use crate::{
-    ast::{BExpr, ChannelFormula, Locator,OperationP, Target},
+    ast::{BExpr, ChannelFormula, Locator, OperationP, Target},
     ast_ext::FreeVariables,
 };
 
@@ -55,10 +55,18 @@ impl ReachableStates {
                 .properties
                 .iter()
                 .flat_map(|(_, property)| property.fv())
-                .chain(ltl_program.initial.variables.keys().cloned().map(Target::Variable))
                 .chain(
                     ltl_program
-                        .initial.arrays
+                        .initial
+                        .variables
+                        .keys()
+                        .cloned()
+                        .map(Target::Variable),
+                )
+                .chain(
+                    ltl_program
+                        .initial
+                        .arrays
                         .keys()
                         .cloned()
                         .map(|arr| Target::Array(arr, ())),
@@ -66,22 +74,39 @@ impl ReachableStates {
             ltl_program.initial.tuple_spaces.clone(),
             ltl_program.initial.async_channels.clone(),
             ltl_program
-                .initial.arrays
+                .initial
+                .arrays
                 .iter()
                 .map(|(arr, vals)| (arr.clone(), vals.len() as u32))
                 .collect(),
         );
         let state = program.initial_state(
-            |var| ltl_program.initial.variables.get(var).copied().unwrap_or_default(),
-            |arr| ltl_program.initial.arrays.get(arr).cloned().unwrap_or_default(),
+            |var| {
+                ltl_program
+                    .initial
+                    .variables
+                    .get(var)
+                    .copied()
+                    .unwrap_or_default()
+            },
+            |arr| {
+                ltl_program
+                    .initial
+                    .arrays
+                    .get(arr)
+                    .cloned()
+                    .unwrap_or_default()
+            },
             ltl_program
-                .initial.tuple_spaces
+                .initial
+                .tuple_spaces
                 .clone()
                 .into_iter()
                 .map(|(_, ts)| ts.space.clone())
                 .collect(),
             ltl_program
-                .initial.async_channels
+                .initial
+                .async_channels
                 .clone()
                 .into_iter()
                 .map(|(_, ch)| ch.channel.clone())

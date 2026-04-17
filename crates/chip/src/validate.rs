@@ -24,7 +24,12 @@ pub fn validate_ltl_program<'a>(
     }
 
     for (span, property) in &properties {
-        validate_property(property, span, &initial.tuple_spaces, &initial.async_channels)?;
+        validate_property(
+            property,
+            span,
+            &initial.tuple_spaces,
+            &initial.async_channels,
+        )?;
     }
 
     Ok(LTLProgram {
