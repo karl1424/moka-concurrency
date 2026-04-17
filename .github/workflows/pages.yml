@@ -50,6 +50,6 @@ jobs:
         uses: peaceiris/actions-gh-pages@v4
         with:
           personal_token: ${{ secrets.PERSONAL_TOKEN }}
-          external_repository: team-checkr/team-checkr.github.io
+          external_repository: team-concurrent/team-concurrent.github.io
           publish_branch: main
           publish_dir: apps/chip/build/
