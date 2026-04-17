@@ -195,6 +195,40 @@
       inline: true,
     },
     {
+      left: 'Formular',
+      group: 'LTL property Grammar:',
+      right: [
+        ['"check"', 'LF'],
+        ['formula', '"check"', 'LF'],
+      ],
+    },
+    {
+      left: 'LF',
+      group: 'LTL property Grammar:',
+      right: [
+        ['AExpr', 'RelOp', 'AExpr'],
+        ['"true"'],
+        ['"false"'],
+        ['"init"'],
+        ['"stuck"'],
+        ['"terminated"'],
+        ['"!"', 'LF'],
+        ['"X"', 'LF'],
+        ['"G"', 'LF'],
+        ['"F"', 'LF'],
+        ['"("', 'LF', '")"'],
+        ['ts', '".putP"', '"("', 'Tuple', '")"'],
+        ['ts', '".getP"', '"("', 'TupleFind', '")"'],
+        ['ts', '".query"', '"("', 'TupleFind', '")"'],
+        ['ch', '"?"', 'AExpr'],
+        ['ch', '"?"', '"?"', 'AExpr'],
+        ['LF', '"&"', 'LF'],
+        ['LF', '"|"', 'LF'],
+        ['LF', '"==>"', 'LF'],
+        ['LF', '"U"', 'LF'],
+      ],
+    },
+    {
       group: 'Lexical Grammar:',
       categories: [
         {
