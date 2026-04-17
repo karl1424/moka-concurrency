@@ -90,9 +90,9 @@
         ['Ch', '"!"', 'AExpr'],
         ['Ch', '"?"', 'Var'],
         ['Ch', '"?"', 'Arr', '"["', 'AExpr', '"]"'],
-        ['Ch', '"!!"', 'Int', 'AExpr'],
-        ['Ch', '"??"', 'Int', 'Arr', 'Var'],
-        ['Ch', '"??"', 'Int', 'Arr', 'Arr', '"["', 'AExpr', '"]"'],
+        ['Ch', '"!"', '"!"', 'Int', 'AExpr'],
+        ['Ch', '"?"', '"?"', 'Int', 'Arr', 'Var'],
+        ['Ch', '"?"', '"?"', 'Int', 'Arr', 'Arr', '"["', 'AExpr', '"]"'],
         ['Operation'],
         ['"skip"'],
         ['Command', '";"', 'Command'],
@@ -136,8 +136,6 @@
         ['Int'],
         ['Var'],
         ['Arr', '"["', 'AExpr', '"]"'],
-        ['"old"', '"("', 'Var', '")"'],
-        ['"old"', '"("', 'Arr', '"["', 'AExpr', '"]"', '")"'],
         ['"-"', 'AExpr'],
         ['"("', 'AExpr', '")"'],
         ['AExpr', '"*"', 'AExpr'],
@@ -302,10 +300,14 @@
         },
         {
           title: 'Communication guard:',
-          intro: ['Communication guards are conditional constructs that control execution based on channel availability.'],
-          items: ['Ch ! AExpr -> Command = The system checks whether the value can be placed into the channel (e.g. buffer capacity constraints). If the condition is satisfied, the value is inserted and the subsequent command is executed.', 
-          'Ch ? Var -> Command = The system checks whether a value is available in the channel. If so, it is received (and assigned to the variable or array position), and then the command is executed.',
-        'Ch ? Arr[...] -> Command = The system checks whether a value is available in the channel. If so, it is received (and assigned to the variable or array position), and then the command is executed.'],
+          intro: [
+            'Communication guards are conditional constructs that control execution based on channel availability.',
+          ],
+          items: [
+            'Ch ! AExpr -> Command = The system checks whether the value can be placed into the channel (e.g. buffer capacity constraints). If the condition is satisfied, the value is inserted and the subsequent command is executed.',
+            'Ch ? Var -> Command = The system checks whether a value is available in the channel. If so, it is received (and assigned to the variable or array position), and then the command is executed.',
+            'Ch ? Arr[...] -> Command = The system checks whether a value is available in the channel. If so, it is received (and assigned to the variable or array position), and then the command is executed.',
+          ],
           note: [
             {
               type: 'text',
