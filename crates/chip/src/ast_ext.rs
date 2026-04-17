@@ -4,7 +4,9 @@ use indexmap::IndexSet;
 use itertools::Either;
 
 use crate::ast::{
-    AExpr, AOp, Array, BExpr, CG, ChannelFormula, ChannelName, Command, CommandKind, Commands, CommunicationGuard, Field, Function, Guard, LTLFormula, LogicOp, Operation, OperationP, PredicateBlock, PredicateChain, Target, TargetDef, TargetKind, TupleSpaceName, Variable
+    AExpr, AOp, Array, BExpr, CG, ChannelFormula, ChannelName, Command, CommandKind, Commands,
+    CommunicationGuard, Field, Function, Guard, LTLFormula, LogicOp, Operation, OperationP,
+    PredicateBlock, PredicateChain, Target, TargetDef, TargetKind, TupleSpaceName, Variable,
 };
 
 impl Target<()> {

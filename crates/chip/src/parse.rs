@@ -189,7 +189,7 @@ pub enum CustomError {
         name: String,
         from: usize,
         to: usize,
-    }
+    },
 }
 
 impl ParseError {
@@ -246,11 +246,13 @@ impl ParseError {
                     src: prep_src(),
                     err_span: (from, to).into(),
                 },
-                CustomError::DuplicateChannelName { name, from, to } => ParseError::DuplicateChannelName {
-                    src: prep_src(),
-                    err_span: (from, to).into(),
-                    name,
-                },
+                CustomError::DuplicateChannelName { name, from, to } => {
+                    ParseError::DuplicateChannelName {
+                        src: prep_src(),
+                        err_span: (from, to).into(),
+                        name,
+                    }
+                }
             },
         }
     }
