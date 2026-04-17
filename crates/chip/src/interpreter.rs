@@ -538,10 +538,10 @@ impl State {
                     array,
                     target,
                 } => {
-                    if let Target::Array(arr, _) = target
-                        && arr == array
-                    {
-                        return Err(StepError::SameArrayGather);
+                    if let Target::Array(arr, _) = target {
+                        if arr == array {
+                            return Err(StepError::SameArrayGather);
+                        }
                     }
 
                     let (array_base, array_len) = p
