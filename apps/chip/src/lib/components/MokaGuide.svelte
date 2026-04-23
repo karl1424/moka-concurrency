@@ -207,6 +207,7 @@
       group: 'LTL property Grammar:',
       right: [
         ['AExpr', 'RelOp', 'AExpr'],
+        ['Var', 'RelOp', 'AExpr'],
         ['"true"'],
         ['"false"'],
         ['"init"'],
@@ -314,7 +315,7 @@
             {
               type: 'paragraph',
               value: [
-                'ch!a places the value a into the channel’s buffer and continues immediately.',
+                'ch!a places the value of a into the channel’s buffer and continues immediately.',
                 'ch?x retrieves the next value from the buffer when the receiver reaches that point in the program.',
                 'Asynchronous channels are always of type Q = Queue: puts to the right and gets from the left.',
               ],
@@ -359,6 +360,48 @@
             'fac = Returns the factorial of an arithmetic expression.',
             'fib = Returns the Fibonacci value of an arithmetic expression.',
             'exp = Returns the result of raising one arithmetic expression to the power of another.',
+          ],
+        },
+        {
+          title: 'LTL properties:',
+          intro: [
+            'LTL (Linear Temporal Logic) properties are used to describe and verify how a program behaves over time.',
+            'A formula consists of logical expressions (LF) combined with temporal operators, evaluated over execution states (nodes) starting from the initial state.',
+          ],
+          items: [
+            'check = evaluates an LTL formula starting from the initial state.',
+            'X φ = (Next) φ holds in the next state.',
+            'G φ = (Globally) φ holds in all future states.',
+            'F φ = (Finally) φ holds in some future state.',
+            'φ U ψ = (Until) φ holds until ψ becomes true.',
+            '!φ = logical negation.',
+            'φ & ψ = logical conjunction.',
+            'φ | ψ = logical disjunction.',
+            'φ ==> ψ = logical implication.',
+            'init = holds in the initial state.',
+            'stuck = holds if the program cannot make further progress.',
+            'terminated = holds if the program has successfully finished execution.',
+            'RelOp = compares arithmetic expressions (e.g. x = 2, x < y).',
+            'ts.putP / ts.getP / ts.queryP = tuple-space predicates evaluated as boolean expressions.',
+            'ch?a = checks head of the channel.',
+            'ch??a = checks presence anywhere in the channel.',
+          ],
+          note: [
+            {
+              type: 'text',
+              value:
+                'The operators describe how properties evolve over execution states. For example, check x = 2 evaluates the initial state, while check X x = 2 evaluates the next state.',
+            },
+            {
+              type: 'paragraph',
+              value: [
+                'check G x = 5 requires that x = 5 in all states.',
+                'check F x = 5 requires that there exists a future state where x = 5.',
+                'check X G x = 5 checks that from the next state onward, x = 5 always holds.',
+                'check (x = 1 U x = 5) requires that x = 1 holds in all states until a state is reached where x = 5 holds.',
+                'stuck and terminated are mutually exclusive: a program cannot be both stuck and terminated.',
+              ],
+            },
           ],
         },
       ],

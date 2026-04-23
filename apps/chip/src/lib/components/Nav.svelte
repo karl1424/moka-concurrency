@@ -87,6 +87,7 @@
     </label>
     <input class="hidden" type="checkbox" name="theme" id="theme" bind:checked={darkTheme} />
   </div>
+
   {#if isOnMokaPage}
     <a href="/examples" class="flex items-center space-x-1 p-2" onclick={toggleExamples}>
       <span>Examples</span>
