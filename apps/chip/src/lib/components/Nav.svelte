@@ -11,6 +11,7 @@
   import Guide from './Guide.svelte';
   import MokaGuide from './MokaGuide.svelte';
   import Examples from './Generator.svelte';
+  import ChatBubbleLeftRight from '~icons/heroicons/chat-bubble-left-right';
 
   interface Props {
     title: string;
@@ -94,12 +95,13 @@
       <BookOpen class="w-5" />
     </a>
     <a
-      href="https://www.youtube.com/watch?v=_6XGXAMgBNw"
+      href="https://forms.gle/sC81SFmruVedtY6h7"
       target="_blank"
       rel="noopener noreferrer"
       class="flex items-center space-x-1 p-2"
     >
-      Feedback
+      <span>Feedback</span>
+      <ChatBubbleLeftRight class="w-5" />
     </a>
   {/if}
   <a href="/guide" class="flex items-center space-x-1 p-2" onclick={toggleGuide}>
