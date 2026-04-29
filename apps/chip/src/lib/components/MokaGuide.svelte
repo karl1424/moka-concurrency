@@ -267,8 +267,8 @@
             'R = Random: picks randomly:',
             'S = Stack: puts and gets from the right.',
             'Q = Queue: puts to the right and gets from the left.',
-            'F = FIFO: puts right, gets first match from left.',
-            'L = LIFO: pushes right, gets last match from left.',
+            'F = FIFO: puts to the right and gets first match from left.',
+            'L = LIFO: puts to the  right and gets last match from left.',
           ],
         },
         {
@@ -296,6 +296,29 @@
             '.putP = Inserts a tuple into the tuple space if it satisfies the tuple-space constraints (e.g. buffer capacity allows it).',
             '.getP = Retrieves and removes a matching tuple if one exists according to the tuple type rules.',
             '.queryP = Retrieves a matching tuple without removing it if one exists.',
+          ],
+        },
+        {
+          title: 'Tuple find',
+          intro: [
+            'A tuple-find expression is used to find specific tuples in a tuple space. It consists of one or more formats, forming a pattern that must match a tuple. Tuple-find is used in ts.get(...) and ts.query(...) operations to select the desired tuple.',
+          ],
+          items: [
+            'Formats using "_" or AExpr are used only for matching.',
+            'Formats starting with "?" are used for assignment from the matching tuple.',
+          ],
+          note: [
+            {
+              type: 'text',
+              value:
+                'Matching is done position-wise: each format corresponds to an element in the tuple.',
+            },
+            {
+              type: 'paragraph',
+              value: [
+                'For example: ts.get(_, ?a, 1) searches for a tuple whose last element is 1 (the first element is ignored), and assigns the second element of the matching tuple to a',
+              ],
+            },
           ],
         },
         {
