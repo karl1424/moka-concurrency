@@ -26,6 +26,7 @@ check F terminated`,
     {
       title: `Tuple space operations`,
       code: `> ts = (R, INF, {(3,4),(5,6)})
+x := 2;
 ts.put(1,x);
 ts.get(1,?a);
 ts.query(?b,4)
