@@ -13,14 +13,16 @@
   const examples: Example[] = [
     {
       title: 'Array assignment',
-      code: `> A = [1,2,3]
+      code: `> A = [1,2,3], x = 0
 A[0] := 2;
-A[1] := 3
+A[1] := 3;
+x := A[1] + 1
 
 check A[0] = 1 & A[1] = 2
 check X (A[0] = 2 & A[1] = 2)
 check X X (A[0] = 2 & A[1] = 3)
 check G A[2] = 3
+check F x = 4
 check F terminated`,
     },
     {
@@ -68,7 +70,7 @@ check F x = 1`,
       title: 'Broadcast',
       code: `> c = (0), x = 0
 par
-    c!!2 2
+    c!!1 2
 []
     c?x
 []
