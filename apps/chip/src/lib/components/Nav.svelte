@@ -94,15 +94,6 @@
       <span>Examples</span>
       <BookOpen class="w-5" />
     </a>
-    <a
-      href="https://forms.gle/sC81SFmruVedtY6h7"
-      target="_blank"
-      rel="noopener noreferrer"
-      class="flex items-center space-x-1 p-2"
-    >
-      <span>Feedback</span>
-      <ChatBubbleLeftRight class="w-5" />
-    </a>
   {/if}
   <a href="/guide" class="flex items-center space-x-1 p-2" onclick={toggleGuide}>
     <span>Guide</span>
