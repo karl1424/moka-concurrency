@@ -11,7 +11,6 @@
   import Guide from './Guide.svelte';
   import MokaGuide from './MokaGuide.svelte';
   import Examples from './Generator.svelte';
-  import ChatBubbleLeftRight from '~icons/heroicons/chat-bubble-left-right';
 
   interface Props {
     title: string;
