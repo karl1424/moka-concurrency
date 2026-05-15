@@ -20,11 +20,13 @@ Install dependencies:
 
 1. Install [Rust](https://rust-lang.org/tools/install/)
 1. Install [NodeJS](https://nodejs.org/en/download)
-1. Install [just](https://github.com/casey/just) using `cargo install just`
+1. Install [Git](https://git-scm.com/install/)
+1. Install [just](https://github.com/casey/just) using `cargo install just` in the terminal
+1. Install wasm-pack using `cargo install wasm-pack` in the terminal
 
-Open a bash terminal and run: `just app chip`  
+Open a Git Bash terminal and run: `just app chip`  
 You can now access it at: http://localhost:5173/moka  
 The deployment can be accessed at: https://team-concurrent.github.io/moka
 
-To run the tests compile the code with `cargo build --release --bin chip`  
+To run the tests compile the code in a Git Bash terminal with `cargo build --release --bin chip`  
 and run the tests with `./target/release/chip group --moka groups.toml reference/ tasks/`
