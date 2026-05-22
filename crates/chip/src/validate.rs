@@ -83,6 +83,9 @@ fn validate_command<'a>(
         CommandKind::Loop(_, guards) => {
             for guard in guards {
                 validate_guard_operations(&guard.guard, tuple_spaces, &command.span)?;
+                for cmd in &guard.cmds.0 {
+                    validate_command(cmd, tuple_spaces, async_channels, sync_channels)?;
+                }
             }
         }
         CommandKind::IfCG(cgs) | CommandKind::LoopCG(_, cgs) => {
@@ -94,6 +97,9 @@ fn validate_command<'a>(
                     sync_channels,
                     &command.span,
                 )?;
+                for cmd in &cg.cmds.0 {
+                    validate_command(cmd, tuple_spaces, async_channels, sync_channels)?;
+                }
             }
         }
         _ => {}
@@ -118,6 +124,13 @@ fn validate_guard_operations<'a>(
                     },
                 });
             }
+        }
+        BExpr::Logic(b1, _, b2) => {
+            validate_guard_operations(b1, tuple_spaces, span)?;
+            validate_guard_operations(b2, tuple_spaces, span)?;
+        }
+        BExpr::Not(b) => {
+            validate_guard_operations(b, tuple_spaces, span)?;
         }
         _ => {}
     }
@@ -184,6 +197,19 @@ fn validate_property<'a>(
                     },
                 });
             }
+        }
+        LTLFormula::Not(f)
+        | LTLFormula::Next(f)
+        | LTLFormula::Globally(f)
+        | LTLFormula::Finally(f) => {
+            validate_property(f, span, tuple_spaces, channels)?;
+        }
+        LTLFormula::And(f1, f2)
+        | LTLFormula::Or(f1, f2)
+        | LTLFormula::Implies(f1, f2)
+        | LTLFormula::Until(f1, f2) => {
+            validate_property(f1, span, tuple_spaces, channels)?;
+            validate_property(f2, span, tuple_spaces, channels)?;
         }
         _ => {}
     }
